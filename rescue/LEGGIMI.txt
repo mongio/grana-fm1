@@ -1,0 +1,52 @@
+PRONTO SOCCORSO FM-1 - Mario Texture's GRANA
+============================================
+
+A cosa serve
+------------
+Se l'FM-1 resta con lo schermo nero e il computer lo vede come "WL80UBOOT1.00" (USB 4c4a:8057), di solito dopo un
+aggiornamento interrotto. Questo kit riscrive la zona del programma con GRANA (pacchetto in pacchetti/) dopo una
+copia di sicurezza completa e tutti i controlli. La zona di avvio e i dati dell'FM-1 non vengono mai scritti.
+
+Funziona su un Raspberry Pi (Raspberry Pi OS) o su un PC con Linux, con l'FM-1 collegato via USB direttamente.
+Non funziona dal Mac: macOS non lascia parlare con il chip in quella modalita'.
+
+Una volta sola: preparare il Raspberry
+--------------------------------------
+1. Con Raspberry Pi Imager scrivi "Raspberry Pi OS" su una microSD e avvia il Pi.
+2. Copia questa cartella sul Pi (chiavetta USB, oppure dal Mac: scp -r pronto-soccorso-fm1 utente@raspberrypi.local:)
+3. Le librerie le installa lo strumento se mancano (serve internet), oppure:
+   sudo apt install -y python3-crcmod python3-pycryptodome python3-tqdm python3-yaml
+
+Quando serve: un comando
+------------------------
+1. FM-1 spento, collegato con il cavo a una porta USB del Pi (senza hub). Accendilo.
+2. Nel terminale, dentro questa cartella:
+
+   sudo python3 recupera_fm1.py
+
+3. Segui quello che dice. Prima di scrivere chiede di confermare scrivendo SI.
+4. Alla fine: scollega l'FM-1, spegnilo e riaccendilo senza cavo.
+   - Parte normalmente: recuperato.
+   - Resta nero: sta aspettando di finire un vecchio aggiornamento. Collegalo al computer di sempre, apri l'editor
+     di GRANA in Chrome e premi "Installa sull'FM-1".
+
+Cosa fa, in ordine
+------------------
+- controlla che i file del kit siano integri (SHA256SUMS): se il browser ne ha scambiato o troncato uno, si ferma;
+- riconosce il chip (WL82, chiave 0x980F, memoria 0x856014) e si ferma se non e' quello dell'FM-1;
+- legge due volte tutta la memoria e salva la copia in copie/ con data e ora;
+- controlla il pacchetto e la zona di avvio dell'FM-1;
+- riscrive solo i settori diversi, ognuno riletto (riprova da solo), poi verifica tutta la memoria;
+- tiene un registro di tutto in copie/.
+Il firmware ufficiale M-VAVE V16 non viene usato (disposizione della memoria diversa); la V15 originale si', se la
+metti in pacchetti/ (riconosciuta dalla sua impronta).
+
+Se si ferma
+-----------
+Legge il messaggio: dice perche' e cosa fare. Le copie in copie/ ti permettono sempre di tornare allo stato di
+partenza. Non spegnere l'FM-1 a meta' di una scrittura: rilancia lo strumento.
+
+Crediti
+-------
+jl-uboot-tool di kagaimiq (MIT, jl-uboot-tool/LICENSE). Formato dei pacchetti e protocollo dal lavoro di Felucca
+(Leo Kuroshita, Hugelton Instruments) e di FM-1 Transporter. Mario Texture's GRANA, GPL-3.0.

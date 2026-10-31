@@ -1,0 +1,16 @@
+# GRANA host test: preset 1 (VOCI), a chord, hold, then page MOTO and knobs, then another sound
+200 keys 0x80
+600 keys 0x4880
+1500 keys 0
+1600 btn 12
+1700 keys 0x80
+1900 keys 0
+2500 enc 2 4
+2600 btn 6
+2700 enc 2 10
+3500 enc 1 1
+4500 btn 12
+5000 btn 10
+6000 enc 6 5
+6500 btn 10
+7500 end
