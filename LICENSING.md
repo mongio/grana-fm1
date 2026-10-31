@@ -8,7 +8,7 @@ complete source under the same licence too.
 
 | | |
 | --- | --- |
-| GRANA: `firmware/src/grana.c`, `grana_bt.c`, `grana_smc.c`, `midi_uart.c` changes, the editor `web/`, `tools/make_samples.py`, `tests/t1*.mjs`, `tests/t_*.mjs`, `rescue/` scripts, `README.md` | Copyright (C) 2026 Mario Texture, written with the help of Claude (Anthropic) |
+| GRANA: `firmware/src/grana.c`, `grana_bt.c`, `grana_smc.c`, `midi_uart.c` changes, the editor `web/`, `tools/make_samples.py`, `tests/t1*.mjs`, `tests/t_*.mjs`, `rescue/` scripts, `README.md`, `LEGGIMI.md` | Copyright (C) 2026 Mario Texture, written with the help of Claude (Anthropic) |
 | The platform: `firmware/hal/`, `firmware/loader/`, `crt0.S`, `app.ld`, `firmware/src/` (`usb.c`, `ota.c`, `recovery.c`, `lcd.c`, `gfx.c`, `libc.c`, `bootguard.h`, `uac_fir.h`), `tools/` | Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments ([Felucca](https://github.com/hugelton/Felucca)), with the changes of [SLOOP](https://github.com/isod89/sloop-fm1) (isod89) |
 | The starting point: [Dinghy](https://github.com/zvenson/dinghy) — `firmware/src/dinghy.c`, the wiring `platform.c`, the host mode `tests/host.c` | zvenson |
 

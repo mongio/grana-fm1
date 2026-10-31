@@ -1,62 +1,66 @@
 # Mario Texture's GRANA
 
-**Un granulatore di campioni per l'M-VAVE FM-1**, nello spirito della MicroGranny 2: quattro strati di campioni
-suonati da una nuvola di grani, effetti lo-fi, arpeggiatore, sequencer, 64 preset con nome e un editor nel browser
-per caricare i propri campioni e installare il firmware.
+**A granular sample player for the M-VAVE FM-1**, in the spirit of the MicroGranny 2: four layers of samples played by
+a cloud of grains, lo-fi effects, arpeggiator, sequencer, 64 named presets and a browser editor to load your own samples
+and install the firmware.
 
-*A granular sample player for the M-VAVE FM-1, in the spirit of the MicroGranny 2: four layers of samples played by a
-cloud of grains, lo-fi effects, arpeggiator, sequencer, 64 named presets and a browser editor to load your own samples
-and install the firmware. The interface and the docs are in Italian.*
+*[Versione italiana: LEGGIMI.md](LEGGIMI.md)*
 
-> Firmware non ufficiale: non è fatto né approvato da M-VAVE. Si installa e si toglie via USB; per tornare al
-> firmware originale basta reinstallarlo dall'editor ufficiale o dall'[FM-1 Firmware Hub](https://fm1.designburgapps.com).
-> Lo usi a tuo rischio.
+> The interface (screen and editor) is in **Italian**; this page explains what the names mean.
 
-Versione **1.6.2**. Provata su un FM-1 vero (tasti neri).
+> Unofficial firmware: not made or endorsed by M-VAVE. It installs and uninstalls over USB; to go back to the stock
+> firmware, reinstall it with the official updater or the [FM-1 Firmware Hub](https://fm1.designburgapps.com).
+> Use at your own risk.
 
-## Installazione
+Version **1.6.2**. Tested on a real FM-1 (black keys).
 
-1. Scarica dalla pagina [Releases](../../releases) l'editor `grana-editor-X.Y.Z.html` e aprilo in **Chrome o Edge**
-   (serve Web MIDI e WebUSB).
-2. Prova GRANA nel simulatore della pagina: è lo stesso codice che gira sull'FM-1.
-3. Scegli i campioni (vedi sotto), collega l'FM-1 via USB e premi **Installa**. Resta sulla scheda finché non finisce.
-4. Variante **GRANA + Bluetooth**: con la casella apposita l'FM-1 si collega da solo a un controller BLE-MIDI
-   (SMC-Mixer, SMC-PAD…). Il codice è più lungo, quindi lascia un po' meno spazio ai campioni.
+## Install
 
-I pacchetti `grana-X.Y.Z.fwsc` (e `-bluetooth`) nelle Releases contengono i campioni di serie, per chi installa con
-altri strumenti.
+1. From the [Releases](../../releases) page download the editor `grana-editor-X.Y.Z.html` and open it in **Chrome or
+   Edge** (it needs Web MIDI and WebUSB).
+2. Try GRANA in the page's simulator: it is the same code that runs on the FM-1.
+3. Choose your samples (see below), connect the FM-1 over USB and press **Installa** (install). Stay on the tab until
+   it is done.
+4. **GRANA + Bluetooth** variant: with its checkbox the FM-1 connects by itself to a BLE-MIDI controller (SMC-Mixer,
+   SMC-PAD…). Its code is longer, so it leaves a little less room for samples.
 
-**Recupero**: se qualcosa va storto, accendi l'FM-1 tenendo premuto **OCT−**: parte solo l'aggiornamento via USB.
-Nella cartella `rescue/` ci sono gli strumenti e le istruzioni (`rescue/LEGGIMI.txt`) per il caso peggiore.
+The packages `grana-X.Y.Z.fwsc` (and `-bluetooth`) in the Releases hold the stock sounds, for those who install with
+other tools.
 
-## I campioni
+**Recovery**: if something goes wrong, power the FM-1 on while holding **OCT−**: only the USB updater starts. The
+`rescue/` folder has the tools and the instructions (`rescue/LEGGIMI.txt`, in Italian) for the worst case.
 
-- **Banca di fabbrica**: sta dentro il firmware, cambia solo reinstallando (circa 440 KB, 390 KB con il Bluetooth).
-- **Banca utente**: 276 KB in una zona a parte della memoria dell'FM-1; si manda dall'editor con
-  *Invia la banca utente all'FM-1*, **senza reinstallare**, e resta anche quando si aggiorna GRANA.
-- Ogni campione a **22 kHz** o **11 kHz** (metà spazio, ancora più grana) e **HIFI** (16 bit) o **LOFI** (8 bit) in RAM.
-  Tutto a 11 kHz si arriva a circa due minuti di campioni; l'editor mostra lo spazio che resta.
-- Fino a 48 campioni in tutto. Otto suoni di serie, sintetizzati da `tools/make_samples.py`.
+## Samples
 
-## Il suono
+- **Factory bank** (*banca di fabbrica*): lives inside the firmware, changes only by reinstalling (about 440 KB,
+  390 KB with Bluetooth).
+- **User bank** (*banca utente*): 276 KB in a separate area of the FM-1's memory; sent from the editor with
+  *Invia la banca utente all'FM-1*, **without reinstalling**, and kept when GRANA is updated.
+- Each sample at **22 kHz** or **11 kHz** (half the space, even more grit) and **HIFI** (16 bit) or **LOFI** (8 bit)
+  in RAM. All at 11 kHz you get about two minutes of samples; the editor shows the room left.
+- Up to 48 samples in all. Eight stock sounds, synthesised by `tools/make_samples.py`.
 
-- Fino a 4 strati suonati insieme (SOVRAPPOSTI) o divisi sulla tastiera (SPLIT), ognuno con intonazione, inizio, area,
-  pan, volume e quantità di grani propri.
-- Grani: dimensione, densità, spray, jitter, salto, direzione, reverse, quattro finestre; scansione libera o ferma, dado.
-- Filtro multimodo (ladder 24 dB, 12 dB, banda, passa-alto 12/24 dB, notch) con movimento lento.
-- MODULAZIONE: VELVET (chorus, flanger, phaser e le vie di mezzo) o METALLO (ring modulator e frequency shifter).
-- NASTRO: eco ping-pong, ripetizioni a tempo o a caso (beat repeat), echi al contrario, eco a nastro con wow e flutter,
-  congelamento.
-- Riverbero plate (struttura di Jon Dattorro) con shimmer; compressore; uscita a **12 bit** (o 16).
-- Due LFO con molte destinazioni, arpeggiatore, sequencer a 64 passi, SCALE con aggancio dei tasti, drone, freeze, crush.
-- MIDI: USB e presa TRS sempre attive, MIDI LEARN (32 associazioni), clock in e out, filtro RICEVI; SMC-Mixer via Bluetooth.
+## The sound
 
-## Le pagine
+- Up to 4 layers played together (SOVRAPPOSTI) or split across the keyboard (SPLIT), each with its own pitch, start,
+  area, pan, volume and share of grains.
+- Grains: size, density, spray, jitter, skip, direction, reverse, four windows; free or frozen scan, dice.
+- Multimode filter (24 dB ladder, 12 dB, band-pass, 12/24 dB high-pass, notch) with slow movement.
+- MODULAZIONE (modulation): VELVET (chorus, flanger, phaser and what lies between) or METALLO (ring modulator and
+  frequency shifter).
+- NASTRO (tape): ping-pong echo, repeats in time or at random (beat repeat), reverse echoes, tape echo with wow and
+  flutter, freeze.
+- Plate reverb (Jon Dattorro's figure) with shimmer; compressor; **12-bit** output (or 16).
+- Two LFOs with many destinations, arpeggiator, 64-step sequencer, SCALES that snap the keys, drone, freeze, crush.
+- MIDI: USB and TRS jack always on, MIDI LEARN (32 mappings), clock in and out, RICEVI filter (all / clock only / one
+  channel); SMC-Mixer over Bluetooth.
 
-Ogni pulsante apre le sue pagine, premuto di nuovo passa alla successiva; SELECT le scorre tutte. KNOB 1–4 sono i
-quattro parametri della pagina.
+## The pages
 
-| Pulsante | Pagina | KNOB 1 | KNOB 2 | KNOB 3 | KNOB 4 |
+Each button opens its pages, pressed again it goes to the next; SELECT turns through all of them. KNOB 1–4 are the
+page's four parameters. Names as on the screen.
+
+| Button | Page | KNOB 1 | KNOB 2 | KNOB 3 | KNOB 4 |
 | --- | --- | --- | --- | --- | --- |
 | HOME | STRATI | STRATO 1 | STRATO 2 | STRATO 3 | STRATO 4 |
 |  | SPLIT | DISPOSIZIONE | SPLIT 1 | SPLIT 2 | SPLIT 3 |
@@ -84,36 +88,42 @@ quattro parametri della pagina.
 | ARP | ARP | MODO | DIVISIONE | OTTAVE | GATE |
 | SEQ | SEQ | TEMPO | SWING | PASSI | DIVISIONE |
 | GLO | MIDI | CLOCK | RICEVI | LEARN | CANCELLA |
-| | BT (solo GRANA + Bluetooth) | BLUETOOTH | DISPOSITIVO | MODO | AVVIO |
+| | BT (GRANA + Bluetooth only) | BLUETOOTH | DISPOSITIVO | MODO | AVVIO |
 
-Altri comandi: HOME tenuto = HOLD; SEL tenuto = dado; ALGORITHM = suono del primo strato; PRESETS = i 64 preset;
-SAVE = salva (le manopole scrivono il nome); PLAY/REC = sequencer; OCT−/OCT+ = ottava.
 
-## Compilare
+A few words: STRATI layers · QUANTITA' share of grains · INI/AREA start and area · NASTRO tape · RIVERBERO reverb ·
+MOTO motion · FORMA shape (envelope) · TASTIERA keyboard (SCALA scale, TONICA root) · SPECIALI specials ·
+GRANI grains · VOLUMI volumes · USCITA output (12/16 bit) · RICEVI receive.
 
-Serve Linux x86-64 (o Docker), Python 3 con Pillow, la toolchain JieLi e tre file dello SDK JieLi AC79
-(`uboot.boot`, `cfg_tool.bin`, `cfg/eq_cfg_hw.bin`, licenza Apache-2.0, non inclusi qui).
+Other controls: HOME held = HOLD; SEL held = dice; ALGORITHM = sound of the first layer; PRESETS = the 64 presets;
+SAVE = save (the knobs write the name); PLAY/REC = sequencer; OCT−/OCT+ = octave.
+
+## Building
+
+You need Linux x86-64 (or Docker), Python 3 with Pillow, the JieLi toolchain and three files of the JieLi AC79 SDK
+(`uboot.boot`, `cfg_tool.bin`, `cfg/eq_cfg_hw.bin`, Apache-2.0, not included here).
 
 ```sh
-tools/get_toolchain.sh                         # la toolchain JieLi in ~/.jieli
-export AC79_SDK=~/fw-AC79_AIoT_SDK             # con cpu/wl82/tools/ dentro
+tools/get_toolchain.sh                         # the JieLi toolchain in ~/.jieli
+export AC79_SDK=~/fw-AC79_AIoT_SDK             # with cpu/wl82/tools/ inside
 ./build.sh --release 1.6.2 [--bt]              # build/grana-1.6.2[-bluetooth].fwsc, build/grana-app[-bt].bin
-sh web/build_wasm.sh                           # web/grana.wasm, il simulatore (clang con wasm32)
+sh web/build_wasm.sh                           # web/grana.wasm, the simulator (clang with wasm32)
 python3 web/make_page.py 1.6.2 FM-1_956 FM-1_966   # web/grana-editor.html
 ```
 
-Prove sul simulatore: `node tests/t16.mjs web/grana.wasm <grana.wasm della 1.5> firmware/gen/bank_default.bin`,
+Simulator tests: `node tests/t16.mjs web/grana.wasm <1.5's grana.wasm> firmware/gen/bank_default.bin`,
 `node tests/t_smc.mjs web/grana.wasm firmware/gen/bank_default.bin`, `node tests/t_midi.mjs …`.
 
-## Crediti e licenza
+## Credits and licence
 
-GRANA è di **Mario Texture**, scritto con l'aiuto di Claude (Anthropic). È software libero sotto **GPL-3.0-only**
-(`LICENSE`): chi distribuisce un firmware costruito da qui deve dare anche i sorgenti, con la stessa licenza.
+GRANA is by **Mario Texture**, written with the help of Claude (Anthropic). It is free software under
+**GPL-3.0-only** (`LICENSE`): whoever distributes a firmware built from here must give its source too, under the same
+licence.
 
-Costruito su [Dinghy](https://github.com/zvenson/dinghy) (zvenson), che usa la piattaforma di
-[Felucca](https://github.com/hugelton/Felucca) (Leo Kuroshita, Hügelton Instruments) come la porta
-[SLOOP](https://github.com/isod89/sloop-fm1) (isod89). Bluetooth: lo stack di [Optimist](https://github.com/w0ts/optimist)
-(w0ts), il collegamento ripreso da fm1-dock (Joakim Eriksson) e la modalità SMC-Mixer da
-[Hortator](https://github.com/DeadActive/hortator) (DeadActive). Dettagli in `LICENSING.md`.
+Built on [Dinghy](https://github.com/zvenson/dinghy) (zvenson), which uses the platform of
+[Felucca](https://github.com/hugelton/Felucca) (Leo Kuroshita, Hügelton Instruments) as
+[SLOOP](https://github.com/isod89/sloop-fm1) (isod89) carries it. Bluetooth: [Optimist](https://github.com/w0ts/optimist)'s
+stack (w0ts), the glue after fm1-dock (Joakim Eriksson) and the SMC-Mixer mode after
+[Hortator](https://github.com/DeadActive/hortator) (DeadActive). Details in `LICENSING.md`.
 
-"M-VAVE" e "FM-1" sono marchi dei rispettivi proprietari.
+"M-VAVE" and "FM-1" are trademarks of their owners.
