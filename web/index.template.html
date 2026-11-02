@@ -247,6 +247,8 @@
         <div class="actions">
           <label>Aggiungi campioni<input type="file" id="file" accept="audio/*,.wav,.aif,.aiff,.mp3,.flac,.ogg" multiple></label>
           <button id="usend" type="button">Invia la banca utente all’FM-1</button>
+          <button id="usave" type="button" title="La banca utente in un file .grnb, pronta da mandare all’FM-1 (anche con VIRGO) o da tenere nel MarioRouter">Salva la banca utente su file</button>
+          <label title="Sostituisce la banca utente con quella del file">Apri una banca utente<input type="file" id="uopen" accept=".grnb"></label>
           <button id="factory" type="button">Rimetti i suoni di serie</button>
           <button id="upeek" type="button" title="Legge dall’FM-1 se la zona USR del firmware originale è vuota: servirebbe per altri 72 KB di campioni">Controlla lo spazio extra</button>
         </div>
@@ -1334,6 +1336,32 @@ async function addFiles(files) {
 $('file').addEventListener('change', (e) => { addFiles(e.target.files); e.target.value = ''; });
 document.addEventListener('dragover', (e) => e.preventDefault());
 document.addEventListener('drop', (e) => { e.preventDefault(); if (e.dataTransfer.files.length) addFiles(e.dataTransfer.files); });
+/* 1.6.3: the user bank as a file (.grnb: the bank exactly as the FM-1 stores it, "GRNB" and its CRC) */
+$('usave').addEventListener('click', () => {
+  const un = (t) => { $('unote').textContent = t; };
+  if (!bankItems(true).length) { un('La banca utente è vuota: niente da salvare.'); return; }
+  const b = bankBytes(true);
+  if (b.length > UB_ROOM) { un('La banca utente è più grande del suo spazio: accorciala prima di salvarla.'); return; }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([b], { type: 'application/octet-stream' }));
+  a.download = 'grana-banca-utente.grnb'; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  un(`Banca utente salvata: ${bankItems(true).length} campioni, ${Math.round(b.length / 1024)} KB.`);
+});
+$('uopen').addEventListener('change', async (ev) => {
+  const un = (t) => { $('unote').textContent = t; };
+  const f = ev.target.files[0]; ev.target.value = '';
+  if (!f) return;
+  const b = new Uint8Array(await f.arrayBuffer()), v = new DataView(b.buffer);
+  if (b.length < 16 || b[0] !== 0x47 || b[1] !== 0x52 || b[2] !== 0x4E || b[3] !== 0x42 || v.getUint32(8, true) > b.length ||
+      crc32(b.subarray(16, v.getUint32(8, true))) !== v.getUint32(12, true)) { un('Questo file non è una banca di GRANA, o è rovinato.'); return; }
+  if (b.length > UB_ROOM) { un('Questa banca è più grande dello spazio della banca utente.'); return; }
+  const got = bankParse(b.subarray(0, v.getUint32(8, true))).map((e) => ({ ...itemFromBank(e), user: true }));
+  if (bankItems(false).length + got.length > BANK_MAX) { un(`Troppi campioni: in tutto ne stanno ${BANK_MAX}.`); return; }
+  if (bankItems(true).length && !confirm(`Sostituire la banca utente con i ${got.length} campioni del file?`)) return;
+  items = [...bankItems(false), ...got]; sel = items.length - got.length; changed();
+  un(`Aperta ${f.name}: ${got.length} campioni nella banca utente. Ora puoi mandarla all’FM-1.`);
+});
 $('factory').addEventListener('click', () => {
   if (bankItems(false).length && !confirm('Sostituire la banca di fabbrica con gli otto suoni di serie? La banca utente resta com’è.')) return;
   items = [...bankParse(BANK_DEFAULT).map(itemFromBank), ...bankItems(true)]; sel = 0; changed();

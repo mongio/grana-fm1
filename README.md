@@ -12,7 +12,7 @@ and install the firmware.
 > firmware, reinstall it with the official updater or the [FM-1 Firmware Hub](https://fm1.designburgapps.com).
 > Use at your own risk.
 
-Version **1.6.2**. Tested on a real FM-1 (black keys).
+Version **1.6.3**. Tested on a real FM-1 (black keys).
 
 ## Install
 
@@ -38,6 +38,8 @@ other tools.
   *Invia la banca utente all'FM-1*, **without reinstalling**, and kept when GRANA is updated.
 - Each sample at **22 kHz** or **11 kHz** (half the space, even more grit) and **HIFI** (16 bit) or **LOFI** (8 bit)
   in RAM. All at 11 kHz you get about two minutes of samples; the editor shows the room left.
+- The user bank can be saved to and opened from a `.grnb` file (the bank exactly as the FM-1 stores it); presets go to a
+  `.grnp` file from the Preset section.
 - Up to 48 samples in all. Eight stock sounds, synthesised by `tools/make_samples.py`.
 
 ## The sound
@@ -106,9 +108,9 @@ You need Linux x86-64 (or Docker), Python 3 with Pillow, the JieLi toolchain and
 ```sh
 tools/get_toolchain.sh                         # the JieLi toolchain in ~/.jieli
 export AC79_SDK=~/fw-AC79_AIoT_SDK             # with cpu/wl82/tools/ inside
-./build.sh --release 1.6.2 [--bt]              # build/grana-1.6.2[-bluetooth].fwsc, build/grana-app[-bt].bin
+./build.sh --release 1.6.3 [--bt]              # build/grana-1.6.3[-bluetooth].fwsc, build/grana-app[-bt].bin
 sh web/build_wasm.sh                           # web/grana.wasm, the simulator (clang with wasm32)
-python3 web/make_page.py 1.6.2 FM-1_956 FM-1_966   # web/grana-editor.html
+python3 web/make_page.py 1.6.3 FM-1_956 FM-1_966   # web/grana-editor.html
 ```
 
 Simulator tests: `node tests/t16.mjs web/grana.wasm <1.5's grana.wasm> firmware/gen/bank_default.bin`,
