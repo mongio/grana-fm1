@@ -10,7 +10,7 @@ per caricare i propri campioni e installare il firmware.
 > firmware originale basta reinstallarlo dall'editor ufficiale o dall'[FM-1 Firmware Hub](https://fm1.designburgapps.com).
 > Lo usi a tuo rischio.
 
-Versione **1.6.3**. Provata su un FM-1 vero (tasti neri).
+Versione **1.7**. Provata su un FM-1 vero (tasti neri).
 
 ## Installazione
 
@@ -97,9 +97,9 @@ Serve Linux x86-64 (o Docker), Python 3 con Pillow, la toolchain JieLi e tre fil
 ```sh
 tools/get_toolchain.sh                         # la toolchain JieLi in ~/.jieli
 export AC79_SDK=~/fw-AC79_AIoT_SDK             # con cpu/wl82/tools/ dentro
-./build.sh --release 1.6.3 [--bt]              # build/grana-1.6.3[-bluetooth].fwsc, build/grana-app[-bt].bin
+./build.sh --release 1.7 [--bt]              # build/grana-1.7[-bluetooth].fwsc, build/grana-app[-bt].bin
 sh web/build_wasm.sh                           # web/grana.wasm, il simulatore (clang con wasm32)
-python3 web/make_page.py 1.6.3 FM-1_956 FM-1_966   # web/grana-editor.html
+python3 web/make_page.py 1.7 FM-1_956 FM-1_966   # web/grana-editor.html
 ```
 
 Prove sul simulatore: `node tests/t16.mjs web/grana.wasm <grana.wasm della 1.5> firmware/gen/bank_default.bin`,

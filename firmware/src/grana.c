@@ -2208,6 +2208,19 @@ static void preset_recall(uint32_t i)
 #define C_WAVH RGB(80, 100, 116)
 #define C_LAB RGB(130, 130, 140)
 #define C_TAB RGB(70, 70, 80)
+/* 1.7: the panels the knobs' values sit on, the header's band */
+#define C_CARD RGB(14, 15, 19)
+#define C_EDGE RGB(34, 36, 44)
+#define C_TRACK RGB(32, 34, 42)
+#define C_BAND RGB(16, 15, 14)
+#define C_RULE RGB(54, 40, 22)
+static void cell_begin(void) { cv_begin(118, 50, C_BLACK); cv_card(0, 0, 118, 50, C_CARD, C_EDGE, C_BLACK); }
+static void cell_value(const char *s, uint16_t col)   /* the value, big unless it does not fit */
+{
+    const felucca_font_t *f = &FONT_L;
+    if (text_w(f, s) > 112) f = &FONT_S;
+    cv_text(6, f == &FONT_L ? 14 : 21, f, s, col);
+}
 #define WAV_Y 28
 #define WAV_H 86
 static uint32_t page, dirty_hdr = 1, dirty_tabs = 1, dirty_cells = 0xF;
@@ -2437,7 +2450,8 @@ static void draw_header(void)
 {
     char s[24], nm[16], *e;
     int32_t x, lx, rx, k;
-    cv_begin(240, 24, C_BLACK);
+    cv_begin(240, 24, C_BAND);               /* 1.7: a band, a warm rule under it */
+    cv_rect(0, 23, 240, 1, C_RULE);
     {   /* 1.5: the preset in use where "GRANA" was, then the scan's direction and the Bluetooth mark */
         static const char *const DI[4] = {">", "<", "<>", "?"};
         const char *pn = preset_name(cur_preset);
@@ -2451,8 +2465,11 @@ static void draw_header(void)
     e = s; *e++ = 'P'; fmt_u(e, (pend_preset >= 0 ? (uint32_t)pend_preset : cur_preset) + 1u); while (*e) e++;
     if (edited && pend_preset < 0) *e++ = '*';
     *e = 0;
-    rx = 234 - text_w(&FONT_S, s);
+    rx = 232 - text_w(&FONT_S, s);           /* the preset's number in a little tag */
+    cv_card(rx - 5, 3, text_w(&FONT_S, s) + 10, 18, pend_preset >= 0 ? RGB(60, 40, 14) : RGB(30, 28, 26),
+            pend_preset >= 0 ? C_ACC : RGB(58, 54, 50), C_BAND);
     cv_text(rx, 4, &FONT_S, s, pend_preset >= 0 ? C_ACC : edited ? C_ACC2 : C_LAB);
+    rx -= 5;
     e = s;
     if (pend_preset >= 0) cat(e, preset_name((uint32_t)pend_preset));   /* the preset the knob points at */
     else {
@@ -2538,11 +2555,17 @@ static void draw_tabs(void)                 /* the page's name, then a mark a pa
         cv_blit(0, 118);
         return;
     }
-    for (i = 0; i < sizeof PG_ORDER; i++) {   /* the pages SELECT goes through, in its order */
-        int32_t mx = 240 - 6 - (int32_t)(sizeof PG_ORDER - i) * 5;   /* 22 pages (1.5): 5 px a mark */
-        cv_rect(mx, 8, 3, PG_ORDER[i] == page ? 4 : 2, PG_ORDER[i] == page ? C_ACC : C_LAB);
+    {   /* the pages SELECT goes through, in its order, grouped by their buttons (1.7): HOME, FX, SEL, ENV, LFO, EDIT, GLO */
+        static const uint8_t GRP[7] = {6, 6, 2, 2, 3, 1, 3};
+        int32_t g, j, mx = 240 - 6 - ((int32_t)sizeof PG_ORDER * 4 + 6 * 4) + 1;
+        for (g = 0, i = 0; g < 7; g++, mx += 4)
+            for (j = 0; j < GRP[g]; j++, i++, mx += 4) {
+                int on = PG_ORDER[i] == page;
+                if (on) { cv_rect(mx - 1, 6, 4, 7, C_ACC); cv_rect(mx, 7, 2, 5, C_ACC2); }
+                else cv_rect(mx, 8, 2, 3, RGB(84, 84, 96));
+            }
     }
-    cv_rect(0, 19, 240, 1, C_AREA);
+    cv_rect(0, 19, 240, 1, C_EDGE);
     cv_blit(0, 118);
 }
 
@@ -2552,18 +2575,26 @@ static void draw_cell(uint32_t c)
     uint32_t p = pp(page, c), bar;
     char s[16];
     const felucca_font_t *f = &FONT_L;
-    cv_begin(118, 50, C_BLACK);
-    if (!PMAX[p]) { cv_blit(c & 1u ? 121 : 1, c < 2u ? 140 : 190); return; }   /* a free place */
-    cv_text(4, 0, &FONT_S, pname_of(p), C_LAB);
+    (void)f;
+    if (!PMAX[p]) {                          /* a free place: an empty panel, dimmer */
+        cv_begin(118, 50, C_BLACK); cv_card(0, 0, 118, 50, C_BLACK, RGB(22, 23, 28), C_BLACK);
+        cv_blit(c & 1u ? 121 : 1, c < 2u ? 140 : 190); return;
+    }
+    cell_begin();                            /* 1.7: on a panel, the bar in a track with a bright tip */
+    cv_text(6, 2, &FONT_S, pname_of(p), C_LAB);
     value_text(p, s);
-    if (text_w(f, s) > 112) f = &FONT_S;
-    cv_text(4, f == &FONT_L ? 15 : 22, f, s, C_WHITE);
-    bar = (p == P_FMODE ? fm_pos(par[p]) : par[p]) * 110u / PMAX[p];
-    cv_rect(4, 47, 110, 2, C_TAB);
-    cv_rect(4, 47, (int32_t)bar, 2, C_ACC);
+    {   /* 1.7: a knob that does nothing now ("-"): dim, no bar */
+        int idle = (s[0] == '-' && !s[1]) || (s[0] == '(');
+        cell_value(s, idle ? C_TAB : C_WHITE);
+        bar = idle ? 0u : (p == P_FMODE ? fm_pos(par[p]) : par[p]) * 106u / PMAX[p];
+    }
+    cv_rect(6, 44, 106, 3, C_TRACK);
+    if (bar) { cv_rect(6, 44, (int32_t)bar, 3, C_ACC); cv_rect(6 + (int32_t)bar - (bar > 1u ? 2 : 1), 44, bar > 1u ? 2 : 1, 3, C_ACC2); }
     if (epar[p] != par[p]) {                /* an LFO on it: where it is now */
-        uint32_t mx = epar[p] * 110u / PMAX[p];
-        cv_rect(4 + (int32_t)(mx > 108u ? 108u : mx), 43, 3, 6, C_WHITE);
+        uint32_t mx = epar[p] * 106u / PMAX[p];
+        int32_t xm = 6 + (int32_t)(mx > 104u ? 104u : mx);
+        cv_rect(xm, 40, 2, 8, C_WHITE);
+        cv_pset(xm - 1, 40, C_WHITE); cv_pset(xm + 2, 40, C_WHITE);
     }
     cell_drawn[c] = epar[p];
     cv_blit(c & 1u ? 121 : 1, c < 2u ? 140 : 190);
@@ -2616,6 +2647,11 @@ static void draw_lane(uint32_t L, int32_t y0, int32_t lh, uint32_t one)
             x = (uint32_t)(f + ly->wstart) * 240u / len;
         }
         cv_rect((int32_t)x, y0, 1, lh, k == NV ? C_TAB : C_ACC2);
+        if (k < NV) { cv_rect((int32_t)x - 1, y0, 3, 1, C_ACC2); cv_rect((int32_t)x - 1, y0 + lh - 1, 3, 1, C_ACC2); }   /* 1.7: capped */
+    }
+    if (a1 - a0 < 240) {                     /* 1.7: the area's two edges, a thin brighter line */
+        int32_t e0 = ((a0 % 240) + 240) % 240, e1 = ((a1 % 240) + 240) % 240;
+        cv_rect(e0, y0, 1, lh, cw); cv_rect(e1 > 0 ? e1 - 1 : 239, y0, 1, lh, cw);
     }
     if (ly->len < len) {                     /* only part of the sound in RAM: the part, marked on top */
         int32_t w0 = (int32_t)((uint32_t)ly->wstart * 240u / len), w1 = (int32_t)(((uint32_t)ly->wstart + ly->len) * 240u / len);
@@ -2763,12 +2799,17 @@ static void in_title(const uint8_t *m, int32_t y0, int32_t mh, uint32_t a, const
 {
     uint16_t *fb = in_fb();
     int32_t k;
-    for (k = 0; k < 240 * mh; k++) {         /* the shadow, 3 px down and right */
+    for (k = 0; k < 240 * mh; k++) {         /* the shadow, 3 px down and right, a quarter as bright; 1.7: a softer
+                                              * half-shade one pixel further */
         int32_t yy = k / 240, xx = k % 240, sy = y0 + yy + 3, sx = xx + 3;
-        if (m[k] && (uint32_t)sy < 240u && sx < 240) {
+        if (m[k] && (uint32_t)sy < 240u && sx < 240 && a > 128u) {
             uint16_t c = fb[sy * 240 + sx];
-            uint16_t u = (uint16_t)((c >> 8) | (c << 8)), d = (uint16_t)((u >> 2) & 0x39E7u);   /* a quarter as bright */
-            if (a > 128u) fb[sy * 240 + sx] = (uint16_t)((d >> 8) | (d << 8));
+            uint16_t u = (uint16_t)((c >> 8) | (c << 8)), d = (uint16_t)((u >> 2) & 0x39E7u);
+            fb[sy * 240 + sx] = (uint16_t)((d >> 8) | (d << 8));
+            if (sy + 1 < 240 && sx + 1 < 240 && !m[k + 241 < 240 * mh ? k + 241 : k]) {
+                uint16_t c2 = fb[(sy + 1) * 240 + sx + 1], u2 = (uint16_t)((c2 >> 8) | (c2 << 8)), d2 = (uint16_t)((u2 >> 1) & 0x7BEFu);
+                fb[(sy + 1) * 240 + sx + 1] = (uint16_t)((d2 >> 8) | (d2 << 8));
+            }
         }
     }
     for (k = 0; k < 240 * mh; k++) {
@@ -2871,8 +2912,8 @@ static void intro_start(void)
         in_sy[k] = (int16_t)(100 + (lfo_sin(a) * r >> 15));
         in_dl[k] = (uint16_t)((in_n - 1u - k) * 300u / in_n + xrand_main() % 160u);   /* the wedge (added last) leaves first */
     }
-    in_mask(in_m1, T1_H, &FONT_L, "Mario Texture's", 1, 2, 1, 3, 0, -1);
-    in_mask(in_m2, T2_H, &FONT_L, T2, 2, 3, 2, 0, 3, 1);
+    in_mask(in_m1, T1_H, &FONT_L, "Mario Texture's", 1, 1, 0, 2, 0, -1);   /* 1.7: lighter, less slanted, a little apart */
+    in_mask(in_m2, T2_H, &FONT_L, T2, 2, 2, 1, 0, 2, 2);                  /* less heavy, the wave gentler */
 }
 static void intro_frame(void)                /* the wheel fades in whole, glints, then comes apart into grains */
 {
@@ -2883,6 +2924,17 @@ static void intro_frame(void)                /* the wheel fades in whole, glints
     lcd_sync();
     for (k = 0; k < 240 * 240; k++) fb[k] = 0;
     if (fout < 0) fout = 0;
+    {   /* 1.7: the wheel's shadow on the ground, soft, gone as the grains leave */
+        int32_t sa = fin * (t < 1800 ? 256 : t < 2600 ? 256 - (t - 1800) * 256 / 800 : 0) >> 8, yy, xx;
+        for (yy = -12; yy <= 12 && sa > 0; yy++)
+            for (xx = -96; xx <= 96; xx++) {
+                int32_t e = xx * xx * 144 + yy * yy * 9216, lim = 96 * 96 * 144;   /* an ellipse 96 x 12 */
+                int32_t px = W_CX + 6 + xx, py = W_CY + W_H + 12 + yy, l;
+                if (e >= lim || (uint32_t)px >= 240u || (uint32_t)py >= 240u) continue;
+                l = (256 - e * 256 / lim) * sa >> 8;
+                fb[py * 240 + px] = in_col(90, 52, 18, (uint32_t)l);
+            }
+    }
     for (k = 0; k < (int32_t)in_n; k++) {
         /* 1.8 s .. 3.4 s: each grain leaves at its own moment (the wedge first), drifts out and fades */
         int32_t u = in_ease((t - 1800 - (int32_t)in_dl[k] * 2) * 256 / 900), px, py, a;
@@ -2890,8 +2942,17 @@ static void intro_frame(void)                /* the wheel fades in whole, glints
         px = in_hx[k] + ((in_sx[k] - in_hx[k]) * u >> 9);
         py = in_hy[k] + ((in_sy[k] - in_hy[k]) * u >> 9) + (u * u >> 12);   /* a little gravity */
         a = fin * (256 - u * 3 / 4) >> 8;
-        if (u == 0 && t > 800 && c[2] >= 236u && ((uint32_t)(t >> 6) + (uint32_t)k * 7u) % 19u == 0u) {   /* the crystals glint */
-            in_dot(px, py, 2, in_col(255, 255, 255, (uint32_t)fin));
+        if (u == 0 && t > 800 && c[2] >= 236u && ((uint32_t)(t >> 6) + (uint32_t)k * 7u) % 19u == 0u) {   /* the crystals glint:
+                                              * 1.7, a little four-pointed star */
+            int32_t r2;
+            in_dot(px, py, 1, in_col(255, 255, 255, (uint32_t)fin));
+            for (r2 = 2; r2 <= 4; r2++) {
+                uint16_t cc = in_col(255, 250, 220, (uint32_t)fin * (5 - r2) / 4);
+                if ((uint32_t)(px + r2) < 240u) fb[py * 240 + px + r2] = cc;
+                if (px - r2 >= 0) fb[py * 240 + px - r2] = cc;
+                if ((uint32_t)(py + r2) < 240u) fb[(py + r2) * 240 + px] = cc;
+                if (py - r2 >= 0) fb[(py - r2) * 240 + px] = cc;
+            }
             continue;
         }
         in_dot(px, py, u < 40 ? 1 : u < 140 ? 1 : 0, in_col(c[0], c[1], c[2], (uint32_t)a));
@@ -3046,6 +3107,7 @@ static void draw_flash(void)
     cv_begin(240, 88, C_BLACK);
     w = text_w(&FONT_L, PAGE[page]);
     cv_text(120 - w / 2, 22, &FONT_L, PAGE[page], C_ACC);
+    cv_rect(120 - w / 2, 56, w, 2, C_RULE);   /* 1.7: underlined */
     cv_text(6, 66, &FONT_S, PAGE[PG_ORDER[(at + (int32_t)n - 1) % (int32_t)n]], C_LAB);   /* the one before, the one after */
     w = text_w(&FONT_S, PAGE[PG_ORDER[(at + 1) % (int32_t)n]]);
     cv_text(234 - w, 66, &FONT_S, PAGE[PG_ORDER[(at + 1) % (int32_t)n]], C_LAB);
@@ -3381,12 +3443,12 @@ static void draw_midi_cell(uint32_t c)
 {
     char s[24];
     const felucca_font_t *f = &FONT_L;
-    cv_begin(118, 50, C_BLACK);
-    cv_text(4, 0, &FONT_S, MIDI_PN[c], C_LAB);
+    (void)f;
+    cell_begin();
+    cv_text(6, 2, &FONT_S, MIDI_PN[c], C_LAB);
     midi_value(c, s);
-    if (text_w(f, s) > 112) f = &FONT_S;
-    cv_text(4, f == &FONT_L ? 15 : 22, f, s, c == 2u && learn_on ? C_ACC : C_WHITE);
-    if (c == 3u) cv_text(114 - text_w(&FONT_S, "OCT+"), 0, &FONT_S, "OCT+", C_TAB);   /* the button that confirms it */
+    cell_value(s, c == 2u && learn_on ? C_ACC : C_WHITE);
+    if (c == 3u) cv_text(112 - text_w(&FONT_S, "OCT+"), 2, &FONT_S, "OCT+", C_TAB);   /* the button that confirms it */
     cv_blit(c & 1u ? 121 : 1, c < 2u ? 140 : 190);
 }
 

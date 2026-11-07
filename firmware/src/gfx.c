@@ -134,13 +134,34 @@ static uint32_t glyph(const felucca_font_t *f, uint32_t ch)
     return ch - f->first;
 }
 
-/* text, alpha-blended onto black with colour c; returns the end x */
+/* GRANA 1.7: colour c over the canvas' pixel, a 0..15 */
+static inline uint16_t mix565(uint16_t bg, uint16_t c, uint32_t a)
+{
+    uint32_t br = bg >> 11, bgg = (bg >> 5) & 63u, bb = bg & 31u;
+    uint32_t r = c >> 11, g = (c >> 5) & 63u, b = c & 31u;
+    r = (r * a + br * (15u - a)) / 15u; g = (g * a + bgg * (15u - a)) / 15u; b = (b * a + bb * (15u - a)) / 15u;
+    return (uint16_t)((r << 11) | (g << 5) | b);
+}
+static inline void cv_blend(int32_t x, int32_t y, uint16_t c, uint32_t a)
+{
+    y += cv_oy;
+    if ((uint32_t)x < cv_w && (uint32_t)y < cv_h) {
+        uint16_t *p = &cv_px[(uint32_t)y * cv_w + (uint32_t)x];
+        *p = swap16(mix565(swap16(*p), c, a));
+    }
+}
+/* a panel: filled, a 1 px border, its corners rounded onto the canvas' own background */
+static void cv_card(int32_t x, int32_t y, int32_t w, int32_t h, uint16_t fill, uint16_t edge, uint16_t out)
+{
+    cv_rect(x, y, w, h, edge);
+    cv_rect(x + 1, y + 1, w - 2, h - 2, fill);
+    cv_pset(x, y, out); cv_pset(x + w - 1, y, out); cv_pset(x, y + h - 1, out); cv_pset(x + w - 1, y + h - 1, out);
+    cv_pset(x + 1, y + 1, edge); cv_pset(x + w - 2, y + 1, edge); cv_pset(x + 1, y + h - 2, edge); cv_pset(x + w - 2, y + h - 2, edge);
+}
+
+/* text, alpha-blended onto what is under it (1.7; it was onto black) with colour c; returns the end x */
 static int32_t cv_text(int32_t x, int32_t y, const felucca_font_t *f, const char *s, uint16_t c)
 {
-    uint16_t ramp[16];
-    uint32_t r = c >> 11, g = (c >> 5) & 63u, b = c & 31u, a;
-    for (a = 0; a < 16u; a++)
-        ramp[a] = (uint16_t)(((r * a / 15u) << 11) | ((g * a / 15u) << 5) | (b * a / 15u));
     for (; *s; s++) {
         uint32_t gi = glyph(f, (uint8_t)*s), gx, gy, w, bpr;
         const uint8_t *gd;
@@ -152,7 +173,7 @@ static int32_t cv_text(int32_t x, int32_t y, const felucca_font_t *f, const char
                 uint32_t v = gd[gy * bpr + gx / 2u];
                 v = (gx & 1u) ? (v & 15u) : (v >> 4);
                 if (v)
-                    cv_pset(x - f->pad + (int32_t)gx, y + (int32_t)gy, ramp[v]);
+                    cv_blend(x - f->pad + (int32_t)gx, y + (int32_t)gy, c, v);
             }
         x += f->adv[gi];
     }
