@@ -131,19 +131,41 @@ RAMINL void fl_inval(uint32_t off, uint32_t len)
         fl_cache_idle();
     }
 }
+/* Wait for WIP to clear. Newer FM-1s carry a UC25HQ80 (0xB36014) beside the
+ * Puya P25Q80 (0x856014); it can be slower. Never go back to XIP while the
+ * chip is busy: wait up to max_us (2 s erase, 50 ms page), a late but
+ * finished operation counts as done (the caller sees took_us). Still busy at
+ * max_us: reset the chip (0x66, 0x99) so XIP reads a sane part, and return
+ * FL_STUCK; the caller restarts the FM-1. */
+#define FL_STUCK        (-5)
+#define FL_ERASE_SOFT   500000u                    /* old limits: beyond = "late" */
+#define FL_PROG_SOFT    10000u
+#define FL_ERASE_MAX    2000000u
+#define FL_PROG_MAX     50000u
 RAMINL int fl_wait_ready(uint32_t max_us, uint32_t *took_us)
 {
     uint32_t t0 = T4_CNT, dt;
     for (;;) {
         dt = (T4_CNT - t0) / 24u;
         if (!(fl_rdsr(0x05) & 1u)) { *took_us = dt; return 0; }
-        if (dt > max_us) { *took_us = dt; return -4; }
+        if (dt > max_us) {
+            *took_us = dt;
+            fl_cs(0); fl_tx(0x66); fl_cs(1);       /* reset enable */
+            fl_cs(0); fl_tx(0x99); fl_cs(1);       /* reset */
+            t0 = T4_CNT;
+            while ((T4_CNT - t0) < 24u * 100u) ;   /* tRST, 100 us */
+            return FL_STUCK;
+        }
     }
 }
 
 /* ---- entry points: IRQs OFF, args/buffers in RAM ---- */
 
-static RAMFN uint32_t fl_jedec_ram(void)                 /* expect 0x856014 */
+/* Puya P25Q80 (the first FM-1s) or UC25HQ80 (FM-1s sold since autumn 2026):
+ * both 1 MiB, same SPI NOR commands. A failed read (0) is refused. */
+#define FL_JEDEC_OK(id) ((id) == 0x856014u || (id) == 0xB36014u)
+
+static RAMFN uint32_t fl_jedec_ram(void)                 /* 0x856014 or 0xB36014 */
 {
     fl_saved_t s; uint32_t id;
     if (fl_enter(&s)) return 0;
@@ -174,7 +196,7 @@ static RAMFN int fl_erase4k_ram(uint32_t off, uint32_t *took_us)
     else {
         fl_cs(0); fl_tx(0x20); fl_addr(off); fl_cs(1);
         fl_inval(off, 4096u);
-        rc = fl_wait_ready(500000u, took_us);     /* generic NOR max 400 ms */
+        rc = fl_wait_ready(FL_ERASE_MAX, took_us);   /* Puya ~18 ms, slow parts longer */
     }
     fl_exit(&s);
     return rc;
@@ -193,7 +215,7 @@ static RAMFN int fl_prog_ram(uint32_t off, const uint8_t *src, uint32_t n, uint3
         for (i = 0; i < n; i++) fl_tx(src[i]);
         fl_cs(1);
         fl_inval(off, n);
-        rc = fl_wait_ready(10000u, took_us);      /* generic NOR max 3 ms */
+        rc = fl_wait_ready(FL_PROG_MAX, took_us);
     }
     fl_exit(&s);
     return rc;
@@ -228,11 +250,25 @@ static void fl_plain_window_init(void)
 static inline uint32_t irq_save(void) { __asm__ volatile("cli" ::: "memory"); return 0; }
 static inline void irq_restore(uint32_t f) { (void)f; __asm__ volatile("csync\n\tsti" ::: "memory"); }
 
+/* Late operations (finished after the old 500 ms / 10 ms): count and longest. */
+static uint32_t fl_late_ops, fl_late_max_us;
+static void fl_note(int rc, uint32_t took, uint32_t soft)
+{
+    if (rc == 0 && took > soft) {
+        fl_late_ops++;
+        if (took > fl_late_max_us) fl_late_max_us = took;
+    }
+#ifdef FL_ON_STUCK
+    if (rc == FL_STUCK) FL_ON_STUCK();         /* chip reset: restart, don't carry on */
+#endif
+}
+
 static int fl_erase4k(uint32_t off, uint32_t *took_us)
 {
     uint32_t f = irq_save();
     int rc = FL_FAR(fl_erase4k_ram)(off, took_us);
     irq_restore(f);
+    fl_note(rc, *took_us, FL_ERASE_SOFT);
     return rc;
 }
 
@@ -247,6 +283,7 @@ static int fl_write(uint32_t off, const uint8_t *src_ram, uint32_t n)
         f = irq_save();
         rc = FL_FAR(fl_prog_ram)(off, src_ram, chunk, &took);
         irq_restore(f);
+        fl_note(rc, took, FL_PROG_SOFT);
         if (rc) return rc;
         off += chunk; src_ram += chunk; n -= chunk;
     }

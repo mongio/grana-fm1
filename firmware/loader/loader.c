@@ -60,18 +60,22 @@ static int ldr_fread(uint32_t off, void *p, uint32_t n) { return fl_read_ram(off
 static int ldr_erase(uint32_t off)
 {
     uint32_t took;
-    return fl_erase4k_ram(off, &took);
+    int rc = fl_erase4k_ram(off, &took);
+    if (rc == FL_STUCK) fm1_reboot();               /* chip reset after 2 s busy: start over */
+    return rc;
 }
 static int ldr_prog(uint32_t off, const void *p, uint32_t n)
 {
     uint32_t took;
-    return fl_prog_ram(off, p, n, &took);
+    int rc = fl_prog_ram(off, p, n, &took);
+    if (rc == FL_STUCK) fm1_reboot();
+    return rc;
 }
 static void ldr_record_clear(void)
 {
     fm1_updata_parm_clear();                        /* CRC 0: the SPL ignores it on a warm reset */
 }
-static int ldr_flash_known(void) { return fl_jedec_ram() == 0x856014u; }   /* as the app (project.c) */
+static int ldr_flash_known(void) { return FL_JEDEC_OK(fl_jedec_ram()); }   /* Puya or UC25HQ80, as the app */
 static void ldr_progress(uint32_t done, uint32_t total) { (void)done; (void)total; ldr_poll(); }
 #include "ldr_core.c"
 

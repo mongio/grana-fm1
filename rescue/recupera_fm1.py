@@ -27,7 +27,8 @@ COPIE = os.path.join(HERE, "copie")
 FLASH, APP_LO, APP_HI, SEC = 0x100000, 0x4000, 0x93000, 0x1000
 STOCK_V15_SHA256 = "db1642b2b6fa5c2cccb11ffd13878068bb28601678d3644049f99dc40e7edb8a"
 STOCK_V15_SIZE = 699956
-CHIP_KEY, FLASH_ID = 0x980F, 0x856014
+CHIP_KEY = 0x980F
+FLASH_IDS = {0x856014: "Puya P25Q80", 0xB36014: "UC25HQ80 (FM-1 dall'autunno 2026)"}
 STAMP = time.strftime("%Y%m%d-%H%M%S")
 _log = None
 
@@ -194,8 +195,10 @@ def open_fm1(path):
     key = ld.chip_key()
     od = ld.online_device()
     say(f"Chip WL82 (AC791N), chiave 0x{key:04X}, memoria 0x{od['id']:06X}")
-    if key != CHIP_KEY or od["id"] != FLASH_ID:
-        stop(f"Chiave o memoria inattese (attese 0x{CHIP_KEY:04X} e 0x{FLASH_ID:06X}): non e' un FM-1 come quelli conosciuti.")
+    if key != CHIP_KEY or od["id"] not in FLASH_IDS:
+        attese = " o ".join(f"0x{i:06X}" for i in FLASH_IDS)
+        stop(f"Chiave o memoria inattese (attese 0x{CHIP_KEY:04X} e {attese}): non e' un FM-1 come quelli conosciuti.")
+    say(f"Memoria: 0x{od['id']:06X} {FLASH_IDS[od['id']]}")
     try:
         io = max(256, min(ld.usb_buffer_size(), 4096))
     except Exception:

@@ -77,8 +77,10 @@ static volatile uint32_t fm1_ms;                /* milliseconds since power-on (
 #define UB_LEN 0x45000u                         /* up to the update loader's staging (0xE0000): 276 KiB */
 #define FL_RANGE_OK(off, n) (FL_IN(off, n, FL_OTA_LO, FL_OTA_HI) || FL_IN(off, n, SETTINGS_AT, SETTINGS_AT + 0x1000u) || \
                              FL_IN(off, n, USER_AT, USER_AT + USER_LEN) || FL_IN(off, n, UB_AT, UB_AT + UB_LEN))
+#define FL_ON_STUCK() fm1_reboot()           /* flash still busy after 2 s: chip reset, restart */
 #include "fm1_flash.h"
 static uint8_t flash_ok;
+static uint32_t flash_id;                       /* 0x856014 Puya, 0xB36014 UC25HQ80 (newer FM-1s) */
 static int st_read(uint32_t off, void *dst, uint32_t n)
 {
     uint8_t *d = dst;
@@ -388,7 +390,8 @@ void fm1_cstart(void)
     fm1_boot.p3_rst = (uint8_t)p3;
     if (boot_mode == BOOT_RECOVERY || recovery_key())
         recovery_main();                        /* OCT- at power-on: the USB rescue */
-    flash_ok = FL_FAR(fl_jedec_ram)() == 0x856014u;
+    flash_id = FL_FAR(fl_jedec_ram)();
+    flash_ok = FL_JEDEC_OK(flash_id);
     ota_boot_cleanup();
     lcd_init();
     lcd_fill(0, 0, 240, 240, C_BLACK);

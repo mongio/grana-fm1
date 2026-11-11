@@ -2237,6 +2237,15 @@ static void fmt_u(char *s, uint32_t v)      /* decimal, no printf */
     s[n] = 0;
 }
 static char *cat(char *d, const char *s) { while (*s) *d++ = *s++; *d = 0; return d; }
+#ifdef FL_JEDEC_OK
+/* which flash this FM-1 has (1.7.1): PUYA, UC25 (newer FM-1s) or FLASH ?, then L n for late operations */
+static char *flash_tag(char *e)
+{
+    e = cat(e, flash_id == 0x856014u ? "PUYA" : flash_id == 0xB36014u ? "UC25" : "FLASH ?");
+    if (fl_late_ops) { e = cat(e, " L"); fmt_u(e, fl_late_ops); while (*e) e++; }
+    return e;
+}
+#endif
 static void fmt_s(char *s, int32_t v)
 {
     if (v > 0) *s++ = '+';
@@ -2548,8 +2557,19 @@ static void draw_tabs(void)                 /* the page's name, then a mark a pa
     }
 #endif
     if (page == PG_MIDI) {                  /* not among SELECT's pages: what it holds instead of the marks */
-        char t[40], *e = cat(cat(t, "v" APP_VER), "  LEARN ");   /* the version GRANA runs, always to hand */
-        fmt_u(e, store.nlearn); while (*e) e++; *e++ = '/'; fmt_u(e, NLEARN);
+        /* the version GRANA runs and its flash chip, always to hand; shorter when it would cover MIDI */
+        char t[48], *e;
+        int32_t room = 234 - 8 - text_w(&FONT_S, "MIDI"), k;
+        for (k = 0; k < 3; k++) {
+            e = cat(t, "v" APP_VER " ");
+#ifdef FL_JEDEC_OK
+            e = k < 2 ? flash_tag(e) : cat(e, flash_id == 0xB36014u ? "UC25" : flash_id == 0x856014u ? "PUYA" : "FLASH ?");
+#endif
+            e = cat(e, k ? " " : "  ");
+            if (k == 0) e = cat(e, "LEARN ");
+            fmt_u(e, store.nlearn); while (*e) e++; *e++ = '/'; fmt_u(e, NLEARN);
+            if (text_w(&FONT_S, t) <= room) break;
+        }
         cv_text(234 - text_w(&FONT_S, t), 1, &FONT_S, t, C_LAB);
         cv_rect(0, 19, 240, 1, C_AREA);
         cv_blit(0, 118);
@@ -2962,8 +2982,14 @@ static void intro_frame(void)                /* the wheel fades in whole, glints
         a = a * fout >> 8;
         in_title(in_m1, T1_Y, T1_H, (uint32_t)a, G1);
         in_title(in_m2, T2_Y, T2_H, (uint32_t)a, G2);
-        {   /* the version, small */
-            const char *v = "v" APP_VER;
+        {   /* the version, small, and the flash chip (1.7.1) */
+            char vb[32];
+            const char *v = vb;
+#ifdef FL_JEDEC_OK
+            flash_tag(cat(vb, "v" APP_VER "  "));
+#else
+            cat(vb, "v" APP_VER);
+#endif
             int32_t w = 0, x;
             const char *p;
             for (p = v; *p; p++) w += FONT_S.adv[glyph(&FONT_S, (uint8_t)*p)];
