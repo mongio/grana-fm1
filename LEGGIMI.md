@@ -10,7 +10,8 @@ per caricare i propri campioni e installare il firmware.
 > firmware originale basta reinstallarlo dall'editor ufficiale o dall'[FM-1 Firmware Hub](https://fm1.designburgapps.com).
 > Lo usi a tuo rischio.
 
-Versione **1.7**. Provata su un FM-1 vero (tasti neri).
+Versione **1.8**. Provata su un FM-1 vero (tasti neri) fino alla 1.7; i motori della 1.8 sono provati nel simulatore e
+nell'emulatore del chip.
 
 ## Installazione
 
@@ -40,6 +41,11 @@ Nella cartella `rescue/` ci sono gli strumenti e le istruzioni (`rescue/LEGGIMI.
 
 ## Il suono
 
+- **Quattro motori** scelti con ALGORITHM, ognuno con il suo carattere e una pagina MOTORE con quattro knob propri:
+  CLASSICO (il granulatore di sempre), STIRAMENTO (il tempo si ferma: tappeti infiniti), FORMANTI (l'intonazione
+  cambia, il timbro resta: voci e strumenti naturali anche lontano dall'originale), RISONATORE (i grani pizzicano corde
+  accordate sulla nota: da qualsiasi campione uno strumento, dalla corda alla campana). Due preset di fabbrica per motore
+  (P9–P14).
 - Fino a 4 strati suonati insieme (SOVRAPPOSTI) o divisi sulla tastiera (SPLIT), ognuno con intonazione, inizio, area,
   pan, volume e quantità di grani propri.
 - Grani: dimensione, densità, spray, jitter, salto, direzione, reverse, quattro finestre; scansione libera o ferma, dado.
@@ -53,8 +59,7 @@ Nella cartella `rescue/` ci sono gli strumenti e le istruzioni (`rescue/LEGGIMI.
 
 ## Le pagine
 
-Ogni pulsante apre le sue pagine, premuto di nuovo passa alla successiva; SELECT le scorre tutte. KNOB 1–4 sono i
-quattro parametri della pagina.
+Ogni pulsante apre le sue pagine, premuto di nuovo passa alla successiva. KNOB 1–4 sono i quattro parametri della pagina.
 
 | Pulsante | Pagina | KNOB 1 | KNOB 2 | KNOB 3 | KNOB 4 |
 | --- | --- | --- | --- | --- | --- |
@@ -76,8 +81,11 @@ quattro parametri della pagina.
 |  | TASTIERA | RETRIG | TASTO | SCALA | TONICA |
 | LFO | LFO 1 | FORMA | VELOCITA' | INTENSITA' | DESTINAZIONE |
 |  | LFO 2 | FORMA | VELOCITA' | INTENSITA' | DESTINAZIONE |
-|  | SPECIALI | DRONE | FREEZE | CRUSH | — |
+|  | SPECIALI | DRONE | FREEZE | CRUSH | MOTORE |
 | EDIT | GRANI | DIMENSIONE | DENSITA' | SPRAY | PITCH |
+|  | MOTORE: STIRAMENTO | VELOCITA' | SFOCATURA | ARMONICI | DERIVA |
+|  | MOTORE: FORMANTI | FORMANTE | LARGHEZZA | RESPIRO | VIBRATO |
+|  | MOTORE: RISONATORE | DECADIMENTO | TIMBRO | DISPERSIONE | MIX |
 | GLO | VOLUMI | VOLUME 1 | VOLUME 2 | VOLUME 3 | VOLUME 4 |
 |  | PAN STRATI | PAN 1 | PAN 2 | PAN 3 | PAN 4 |
 |  | MIX | STEREO | COMPRESSORE | USCITA | VOLUME |
@@ -86,8 +94,13 @@ quattro parametri della pagina.
 | GLO | MIDI | CLOCK | RICEVI | LEARN | CANCELLA |
 | | BT (solo GRANA + Bluetooth) | BLUETOOTH | DISPOSITIVO | MODO | AVVIO |
 
-Altri comandi: HOME tenuto = HOLD; SEL tenuto = dado; ALGORITHM = suono del primo strato; PRESETS = i 64 preset;
+Altri comandi: HOME tenuto = HOLD; SEL tenuto = dado; ALGORITHM = motore (apre MOTORE); SELECT = campione del primo strato
+(in REC: la posizione); PRESETS = i 64 preset;
 SAVE = salva (le manopole scrivono il nome); PLAY/REC = sequencer; OCT−/OCT+ = ottava.
+
+In alto: a sinistra il nome del preset, al centro il suo numero e il motore, a destra la batteria (verde, gialla, rossa
+che lampeggia quando è quasi scarica; un fulmine quando l'FM-1 è alimentato via USB). CC MIDI 110–114: motore e i suoi
+quattro knob.
 
 ## Compilare
 
@@ -97,9 +110,9 @@ Serve Linux x86-64 (o Docker), Python 3 con Pillow, la toolchain JieLi e tre fil
 ```sh
 tools/get_toolchain.sh                         # la toolchain JieLi in ~/.jieli
 export AC79_SDK=~/fw-AC79_AIoT_SDK             # con cpu/wl82/tools/ dentro
-./build.sh --release 1.7 [--bt]              # build/grana-1.7[-bluetooth].fwsc, build/grana-app[-bt].bin
+./build.sh --release 1.8 [--bt]              # build/grana-1.8[-bluetooth].fwsc, build/grana-app[-bt].bin
 sh web/build_wasm.sh                           # web/grana.wasm, il simulatore (clang con wasm32)
-python3 web/make_page.py 1.7 FM-1_956 FM-1_966   # web/grana-editor.html
+python3 web/make_page.py 1.8 FM-1_958 FM-1_968   # web/grana-editor.html
 ```
 
 Prove sul simulatore: `node tests/t16.mjs web/grana.wasm <grana.wasm della 1.5> firmware/gen/bank_default.bin`,

@@ -12,7 +12,8 @@ and install the firmware.
 > firmware, reinstall it with the official updater or the [FM-1 Firmware Hub](https://fm1.designburgapps.com).
 > Use at your own risk.
 
-Version **1.7**. Tested on a real FM-1 (black keys).
+Version **1.8**. Tested on a real FM-1 (black keys) up to 1.7; the 1.8 engines are tested in the simulator and the chip
+emulator.
 
 ## Install
 
@@ -44,6 +45,10 @@ other tools.
 
 ## The sound
 
+- **Four engines** on ALGORITHM, each with its own character and a MOTORE page of four knobs: CLASSICO (the granulator
+  as always), STIRAMENTO (time stands still: endless pads), FORMANTI (the pitch moves, the timbre stays: voices and
+  instruments natural far from their pitch), RISONATORE (the grains pluck strings tuned to the note: an instrument from
+  any sample, from string to bell). Two factory presets an engine (P9–P14).
 - Up to 4 layers played together (SOVRAPPOSTI) or split across the keyboard (SPLIT), each with its own pitch, start,
   area, pan, volume and share of grains.
 - Grains: size, density, spray, jitter, skip, direction, reverse, four windows; free or frozen scan, dice.
@@ -59,7 +64,7 @@ other tools.
 
 ## The pages
 
-Each button opens its pages, pressed again it goes to the next; SELECT turns through all of them. KNOB 1–4 are the
+Each button opens its pages, pressed again it goes to the next. KNOB 1–4 are the
 page's four parameters. Names as on the screen.
 
 | Button | Page | KNOB 1 | KNOB 2 | KNOB 3 | KNOB 4 |
@@ -82,8 +87,11 @@ page's four parameters. Names as on the screen.
 |  | TASTIERA | RETRIG | TASTO | SCALA | TONICA |
 | LFO | LFO 1 | FORMA | VELOCITA' | INTENSITA' | DESTINAZIONE |
 |  | LFO 2 | FORMA | VELOCITA' | INTENSITA' | DESTINAZIONE |
-|  | SPECIALI | DRONE | FREEZE | CRUSH | — |
+|  | SPECIALI | DRONE | FREEZE | CRUSH | MOTORE |
 | EDIT | GRANI | DIMENSIONE | DENSITA' | SPRAY | PITCH |
+|  | MOTORE: STIRAMENTO | VELOCITA' | SFOCATURA | ARMONICI | DERIVA |
+|  | MOTORE: FORMANTI | FORMANTE | LARGHEZZA | RESPIRO | VIBRATO |
+|  | MOTORE: RISONATORE | DECADIMENTO | TIMBRO | DISPERSIONE | MIX |
 | GLO | VOLUMI | VOLUME 1 | VOLUME 2 | VOLUME 3 | VOLUME 4 |
 |  | PAN STRATI | PAN 1 | PAN 2 | PAN 3 | PAN 4 |
 |  | MIX | STEREO | COMPRESSORE | USCITA | VOLUME |
@@ -94,11 +102,14 @@ page's four parameters. Names as on the screen.
 
 
 A few words: STRATI layers · QUANTITA' share of grains · INI/AREA start and area · NASTRO tape · RIVERBERO reverb ·
-MOTO motion · FORMA shape (envelope) · TASTIERA keyboard (SCALA scale, TONICA root) · SPECIALI specials ·
+MOTO motion · FORMA shape (envelope) · TASTIERA keyboard (SCALA scale, TONICA root) · SPECIALI specials · MOTORE engine (STIRAMENTO stretch, FORMANTI formants, RISONATORE resonator) ·
 GRANI grains · VOLUMI volumes · USCITA output (12/16 bit) · RICEVI receive.
 
-Other controls: HOME held = HOLD; SEL held = dice; ALGORITHM = sound of the first layer; PRESETS = the 64 presets;
+Other controls: HOME held = HOLD; SEL held = dice; ALGORITHM = engine (opens MOTORE); SELECT = sound of the first layer (in REC: the position); PRESETS = the 64 presets;
 SAVE = save (the knobs write the name); PLAY/REC = sequencer; OCT−/OCT+ = octave.
+
+At the top: the preset's name on the left, its number and the engine in the middle, the battery on the right (green,
+yellow, a red one blinking when nearly empty; a bolt on USB power). MIDI CC 110–114: the engine and its four knobs.
 
 ## Building
 
@@ -108,9 +119,9 @@ You need Linux x86-64 (or Docker), Python 3 with Pillow, the JieLi toolchain and
 ```sh
 tools/get_toolchain.sh                         # the JieLi toolchain in ~/.jieli
 export AC79_SDK=~/fw-AC79_AIoT_SDK             # with cpu/wl82/tools/ inside
-./build.sh --release 1.7 [--bt]              # build/grana-1.7[-bluetooth].fwsc, build/grana-app[-bt].bin
+./build.sh --release 1.8 [--bt]              # build/grana-1.8[-bluetooth].fwsc, build/grana-app[-bt].bin
 sh web/build_wasm.sh                           # web/grana.wasm, the simulator (clang with wasm32)
-python3 web/make_page.py 1.7 FM-1_956 FM-1_966   # web/grana-editor.html
+python3 web/make_page.py 1.8 FM-1_958 FM-1_968   # web/grana-editor.html
 ```
 
 Simulator tests: `node tests/t16.mjs web/grana.wasm <1.5's grana.wasm> firmware/gen/bank_default.bin`,

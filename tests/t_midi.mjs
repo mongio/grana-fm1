@@ -17,7 +17,7 @@ let ok = 0, bad = 0;
 function check(name, cond, info = '') { if (cond) ok++; else bad++; console.log((cond ? 'OK  ' : 'NO  ') + name + (info ? '  ' + info : '')); }
 run(4000);                      // the opening
 press('GLO'); press('GLO'); press('GLO'); press('GLO');
-check('GLO x4: pagina MIDI', page() === 25, 'page ' + page());
+check('GLO x4: pagina MIDI', page() === 26, 'page ' + page());
 if (process.env.OUT) fs.writeFileSync(process.env.OUT + '/midi_page.raw', Buffer.from(new Uint8Array(e.memory.buffer, e.fb(), 240 * 240 * 2)));
 e.enc(4, 1); run(50);           // KNOB 3: LEARN on
 check('LEARN acceso', e.dbg(5) === 1);
@@ -34,7 +34,7 @@ e.midi(0xB0, 21, 0); run(20);
 check('CC 21 = 0 -> FREQUENZA a zero', par(37) === 0);
 // a learnt note: FREEZE (choice) toggles, the note does not play
 press('GLO'); press('GLO'); press('GLO'); press('GLO');   // FILTRO -> LIVELLI -> MIX -> MIDI
-check('di nuovo pagina MIDI', page() === 25, 'page ' + page());
+check('di nuovo pagina MIDI', page() === 26, 'page ' + page());
 e.enc(4, 1); run(50);
 press('LFO'); press('LFO'); press('LFO');   // LFO 1, LFO 2, SPECIALI
 check('pagina SPECIALI', page() === 8);

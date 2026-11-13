@@ -4,6 +4,9 @@
  * The app (firmware/src/grana.c) is the same source that goes on the FM-1. */
 #include <stdint.h>
 #define WEB_EXPORT(name) __attribute__((export_name(name)))
+static int32_t web_batt = 600;                  /* 1.8: the simulator's battery, full */
+#define BATT_RAW() web_batt
+#define BATT_USB() 0
 
 #ifndef APP_NAME
 #define APP_NAME "GRANA"

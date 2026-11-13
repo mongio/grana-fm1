@@ -108,10 +108,12 @@ enum { P_POS, P_AREA, P_SCAN, P_DIR,                     /* MOTO (SEL) */
        P_PN1, P_PN2, P_PN3, P_PN4,                      /* 1.4, PAN STRATI (GLO): each layer's place, 100 = the centre */
        P_VO1, P_VO2, P_VO3, P_VO4,                      /* 1.5, VOLUMI (GLO): each layer's own volume */
        P_DISP, P_SP1, P_SP2, P_SP3,                     /* 1.5, SPLIT (HOME): SOVRAPPOSTI / SPLIT, the three split notes */
-       P_SCALA, P_TONICA, P_BIT12, P_FREE16,            /* 1.6: the keyboard's scale and its tonic (TASTIERA), the 12-bit output (MIX) */
+       P_SCALA, P_TONICA, P_BIT12, P_MOTORE,            /* 1.6: the keyboard's scale and its tonic (TASTIERA), the 12-bit output (MIX);
+                                                         * 1.8: the engine (ALGORITHM; was a free place) */
+       P_M1, P_M2, P_M3, P_M4,                          /* 1.8, MOTORE (EDIT again): the engine's own four */
        NP };
 #define NP5 80u                                         /* the parameters of 1.3's presets (PRESET0 is written in them) */
-#define NPAGE 25u
+#define NPAGE 26u
 #define NPAR (NPAGE * 4u)
 static const uint8_t PMAX[NP] = {200, 200, 200, 3,  63, 63, 100, 48,  3, 100, 63, 63,  100, 15, 1, 100,   /* 1.5: AREA, SCAN 200 */
                                  4, 77, 95, 100,  100, 100, 100, 100,  4, 4, 3, 100,  220, 50, 63, 4,
@@ -120,7 +122,7 @@ static const uint8_t PMAX[NP] = {200, 200, 200, 3,  63, 63, 100, 48,  3, 100, 63
                                  240, 240, 240, 240,  200, 200, 200, 200,  200, 200, 200, 200,
                                  100, 100, 100, 1,  200, 200, 200, 200,
                                  100, 100, 100, 100,  1, 127, 127, 127,
-                                 14, 11, 1, 0};
+                                 14, 11, 1, 3,  100, 100, 100, 100};
 static const char *const PNAME[NPAR] = {"POSIZIONE", "AREA", "SCAN", "DIREZIONE",
                                         "DIMENSIONE", "DENSITA'", "SPRAY", "PITCH",
                                         "FINESTRA", "REVERSE", "ATTACCO", "RILASCIO",
@@ -145,29 +147,36 @@ static const char *const PNAME[NPAR] = {"POSIZIONE", "AREA", "SCAN", "DIREZIONE"
                                         "PAN 1", "PAN 2", "PAN 3", "PAN 4",
                                         "VOLUME 1", "VOLUME 2", "VOLUME 3", "VOLUME 4",
                                         "DISPOSIZIONE", "SPLIT 1", "SPLIT 2", "SPLIT 3",
-                                        "SCALA", "TONICA", "USCITA", ""};
+                                        "SCALA", "TONICA", "USCITA", "MOTORE",
+                                        "MOTORE 1", "MOTORE 2", "MOTORE 3", "MOTORE 4"};
+enum { MO_CLASSICO, MO_STIRA, MO_FORMANTI, MO_RISON, NMOT };   /* 1.8: the engines, on ALGORITHM */
+static const char *const MOT_NAME[NMOT] = {"CLASSICO", "STIRAMENTO", "FORMANTI", "RISONATORE"};
+static const char *const MOT_KNOB[NMOT][4] = {{"", "", "", ""}, {"VELOCITA'", "SFOCATURA", "ARMONICI", "DERIVA"},
+                                              {"FORMANTE", "LARGHEZZA", "RESPIRO", "VIBRATO"},
+                                              {"DECADIMENTO", "TIMBRO", "DISPERSIONE", "MIX"}};
 static const char *const PAGE[NPAGE + 2u] = {"MOTO", "GRANI", "FORMA", "MIX", "NASTRO", "RIVERBERO", "ARP", "SEQ", "SPECIALI",
                                         "FILTRO", "STRATI", "QUANTITA'", "MOTO 2", "LFO 1", "LFO 2", "MODULAZIONE", "RIVERBERO 2",
                                         "PITCH STRATI", "INI/AREA 1-2", "INI/AREA 3-4", "NASTRO 2",
-                                        "PAN STRATI", "VOLUMI", "SPLIT", "TASTIERA", "MIDI", "BT"};
+                                        "PAN STRATI", "VOLUMI", "SPLIT", "TASTIERA", "MOTORE", "MIDI", "BT"};
 enum { PG_MOTO = 0, PG_GRANI = 1, PG_FORMA = 2, PG_MIX = 3, PG_DLY = 4, PG_RIV = 5, PG_ARP = 6, PG_SEQ = 7, PG_SPEC = 8,
        PG_FILT = 9, PG_STR = 10, PG_LIV = 11, PG_MOTO2 = 12, PG_LFO1 = 13, PG_LFO2 = 14, PG_MOD = 15, PG_RIV2 = 16,
        PG_LPIT = 17, PG_LINI = 18, PG_LAREA = 19,   /* 1.3: the layers' own pitch, start, area (HOME again) */
        PG_NAS2 = 20, PG_LPAN = 21,          /* 1.4: NASTRO's second page (FX), the layers' pan (GLO) */
        PG_VOL = 22, PG_SPLIT = 23,          /* 1.5: the layers' volumes (GLO), the keyboard split (HOME) */
        PG_TAST = 24,                        /* 1.6: RETRIG, TASTO, SCALA, TONICA (ENV again) */
-       PG_MIDI = 25, PG_BT = 26 };          /* BLUETOOTH: GRANA + Bluetooth only (GRANA_BT) */
+       PG_MOT = 25,                         /* 1.8: the engine's own knobs (EDIT again) */
+       PG_MIDI = 26, PG_BT = 27 };          /* BLUETOOTH: GRANA + Bluetooth only (GRANA_BT) */
 #ifndef GRANA_BT
 #define GRANA_BT 0
 #endif                     /* MIDI (1.2): the clock and MIDI LEARN, settings rather than a preset's parameters */
 /* SELECT turns through these as the buttons sit on the panel: HOME, then FX SEL ENV LFO EDIT GLO left to right,
  * each button's pages in the order it opens them (ARP and SEQ only by their buttons) */
-static const uint8_t PG_ORDER[23] = {PG_STR, PG_SPLIT, PG_LIV, PG_LPIT, PG_LINI, PG_LAREA,   /* HOME (1.5: SPLIT, QUANTITA') */
+static const uint8_t PG_ORDER[24] = {PG_STR, PG_SPLIT, PG_LIV, PG_LPIT, PG_LINI, PG_LAREA,   /* HOME (1.5: SPLIT, QUANTITA') */
                                      PG_FILT, PG_MOD, PG_DLY, PG_NAS2, PG_RIV, PG_RIV2,   /* FX */
                                      PG_MOTO, PG_MOTO2,            /* SEL */
                                      PG_FORMA, PG_TAST,            /* ENV (1.6: TASTIERA) */
                                      PG_LFO1, PG_LFO2, PG_SPEC,    /* LFO */
-                                     PG_GRANI,                     /* EDIT */
+                                     PG_GRANI, PG_MOT,             /* EDIT (1.8: MOTORE) */
                                      PG_VOL, PG_LPAN, PG_MIX};     /* GLO (1.5: VOLUMI where LIVELLI was) */
 /* 1.5: INIZIO and AREA by layer: the two pages show the start and the area of layers 1-2, then 3-4 (the parameters keep their
  * places, so presets, CCs and LEARN are unchanged). Every other page shows its own four */
@@ -177,7 +186,7 @@ static uint32_t pp(uint32_t pg, uint32_t k)
     if (pg == PG_LINI || pg == PG_LAREA) return (pg == PG_LINI ? 0u : 2u) + (k >> 1) + (k & 1u ? P_LA1 : P_LS1);
     if (pg == PG_TAST) return TAST[k & 3u];                 /* 1.6: RETRIG from MIX, TASTO from SPECIALI */
     if (pg == PG_MIX && k == 2u) return P_BIT12;            /* MIX: STEREO, COMPRESSORE, USCITA, VOLUME */
-    if (pg == PG_SPEC && k == 3u) return P_FREE16;          /* SPECIALI: DRONE, FREEZE, CRUSH, a free place */
+    if (pg == PG_SPEC && k == 3u) return P_MOTORE;          /* SPECIALI: DRONE, FREEZE, CRUSH, MOTORE (1.8; a free place before) */
     return pg * 4u + k;
 }
 static int32_t cell_of(uint32_t pg, uint32_t p)   /* the knob that shows p on page pg, -1 none */
@@ -292,7 +301,12 @@ static struct {
                                                          * phaser's share (Q15); METALLO: LATO, Q15 */
     volatile int32_t n_mode, n_len, n_var, n_reps, n_short, n_pdrop, n_ratio;   /* 1.4, NASTRO (see fx_frame) */
     volatile int32_t n_caso;
-    volatile uint32_t bit12;                /* 1.6: the output cut to 12 bits */                /* 1.5: RIPETI's repeats go on by chance (VARIAZIONE), up to RITORNO's */
+    volatile uint32_t bit12;                /* 1.6: the output cut to 12 bits */
+    volatile uint32_t mot;                  /* 1.8: the engine (MO_*) */
+    volatile uint32_t st_oct;               /* STIRAMENTO: a grain an octave away, 0..65536 */
+    volatile int32_t fo_ct, fo_breath, fo_vib, fo_vinc, fo_wmax;   /* FORMANTI: the formant's shift (cents), RESPIRO (0..65536),
+                                                                     * VIBRATO (cents) and its phase step, the longest grain (frames) */
+    volatile int32_t rs_fb, rs_damp, rs_ap, rs_mix, rs_gin;   /* RISONATORE: Q15 (rs_gin: the pluck's share, see engine_update) */                /* 1.5: RIPETI's repeats go on by chance (VARIAZIONE), up to RITORNO's */
 } eng;
 
 /* ---- the voices and their grains (ISR) */
@@ -321,6 +335,9 @@ typedef struct {
     int32_t timer;                          /* frames to the next grain */
     uint32_t age;
     grain_t g[NG];
+    uint32_t facc, vph;                     /* 1.8, FORMANTI: the period's fraction (Q8), the vibrato's phase */
+    int32_t per8;                           /* FORMANTI: the last period, Q8 frames; RISONATORE: the string's (Q8) */
+    int32_t rs_w, rs_lp, rs_ax, rs_ay;      /* RISONATORE: the string's write place, low-pass, all-pass */
 } voice_t;
 static voice_t voice[NV];
 static uint32_t ghead;                      /* the shared scan, for RETRIG off */
@@ -398,7 +415,12 @@ static void spawn(voice_t *v, uint32_t at)
     g->lay = (uint8_t)L;
     g->gen = ly->gen;
     p = eng.pitch_ct + v->base_ct + ly->ct;
+    if (eng.mot == MO_FORMANTI) p = eng.fo_ct + ly->ct;    /* 1.8: read at the sound's own pace, the note is the grains' rate */
     if (eng.jit_ct > 0) p += (int32_t)(xrand() % (uint32_t)(2 * eng.jit_ct + 1)) - eng.jit_ct;
+    if (eng.mot == MO_STIRA && (xrand() & 0xFFFFu) < eng.st_oct) {   /* ARMONICI: an octave up, down, or a twelfth up */
+        uint32_t o = xrand() & 3u;
+        p += o < 2u ? 1200 : o == 2u ? -1200 : 1902;
+    }
     g->step = (int32_t)cents_step(p);
     if (ly->r11) g->step >>= 1;             /* 1.6: a sound at 11025 Hz */
     if ((xrand() & 0xFFFFu) < eng.rev) g->step = -g->step;
@@ -412,6 +434,14 @@ static void spawn(voice_t *v, uint32_t at)
     }
     g->wph = 0;
     g->winc = eng.winc;
+    if (eng.mot == MO_FORMANTI && v->per8 > 0) {    /* 1.8: at most 7 at once (8 a voice); about two sound as one */
+        uint32_t per = (uint32_t)v->per8 >> 8, gfr = eng.gframes, amp;
+        if (per < 1u) per = 1u;
+        if (gfr > 7u * per) { gfr = 7u * per; g->winc = 0xFFFFFFFFu / gfr; }
+        amp = 2u * per * 32768u / (gfr ? gfr : 1u);   /* fewer than two at once: up to twice as loud */
+        if (amp > 65536u) amp = 65536u;
+        if (amp != 32768u) { g->gl = (g->gl * (int32_t)amp) >> 15; g->gr = (g->gr * (int32_t)amp) >> 15; }
+    }
     g->delay = at;
     g->on = 1;
 }
@@ -1112,6 +1142,75 @@ static void comp_block(int32_t *out, uint32_t n)
 }
 
 static int32_t vbl[HALF_FRAMES], vbr[HALF_FRAMES];
+
+/* 1.8, FORMANTI: the grains come at the note's rate (a period of the note each), each read at the sound's own pace:
+ * the note is the pitch, the sound and its window the timbre (pitch-synchronous, the way formants are kept) */
+static inline int32_t soft_sin(uint32_t ph)  /* Q15, a triangle bent toward a sine (3x - x^3) / 2 */
+{
+    int32_t t = (int32_t)(ph >> 15), x;      /* 0 .. 131071 */
+    x = t < 65536 ? t - 32768 : 98303 - t;   /* -32768 .. 32767 */
+    return (3 * x - (int32_t)(((int64_t)x * x >> 15) * x >> 15)) >> 1;
+}
+static int32_t note_per8(int32_t c)         /* a note (cents from C4) -> its period, Q8 output frames (168.6 at C4) */
+{
+    return (int32_t)(88371200u / cents_step(c));
+}
+static int32_t fo_next(voice_t *vo)         /* frames to the next grain */
+{
+    int32_t c = eng.pitch_ct + vo->base_ct, per, j;
+    if (eng.fo_vib) c += (soft_sin(vo->vph) * eng.fo_vib) >> 15;
+    per = note_per8(c);
+    if (eng.fo_breath) {                     /* RESPIRO: the periods uneven, a breath in the voice */
+        j = (int32_t)(((int64_t)per * eng.fo_breath) >> 21);   /* up to +-3 % a period */
+        if (j > 0) per += (int32_t)(xrand() % (uint32_t)(2 * j + 1)) - j;
+    }
+    vo->per8 = per;
+    per += (int32_t)vo->facc;
+    vo->facc = (uint32_t)per & 255u;
+    per >>= 8;
+    return per < 1 ? 1 : per;
+}
+
+/* 1.8, RISONATORE: each voice a string (Karplus-Strong) tuned to its note, the grains plucking it: a low-pass
+ * (TIMBRO) and an all-pass (DISPERSIONE: stretched partials, bells) in the loop, DECADIMENTO its feedback.
+ * 512 frames a string: notes under F2 sound an octave up. */
+#define RS_N 512
+static int16_t rs_line[NV][RS_N];
+static void rs_reset(uint32_t v)
+{
+    uint32_t i;
+    for (i = 0; i < RS_N; i++) rs_line[v][i] = 0;
+    voice[v].rs_w = 0; voice[v].rs_lp = 0; voice[v].rs_ax = 0; voice[v].rs_ay = 0;
+}
+static void rs_block(voice_t *vo, uint32_t v, uint32_t n)
+{
+    int16_t *L = rs_line[v];
+    int32_t w = vo->rs_w, lp = vo->rs_lp, ax = vo->rs_ax, ay = vo->rs_ay, d8, comp;
+    int32_t fb = eng.rs_fb, dm = eng.rs_damp, a = eng.rs_ap, mx = eng.rs_mix, dry = 32767 - mx, gin = eng.rs_gin;
+    uint32_t i;
+    d8 = note_per8(eng.pitch_ct + vo->base_ct);
+    while (d8 > ((RS_N - 8) << 8)) d8 >>= 1;
+    comp = ((32768 - dm) << 8) / dm + ((32768 - a) << 8) / (32768 + a);   /* the loop's own delay, Q8 */
+    d8 -= comp;
+    if (d8 < (2 << 8)) d8 = 2 << 8;
+    for (i = 0; i < n; i++) {
+        int32_t x = (int32_t)(((int64_t)(vbl[i] + vbr[i]) * gin) >> 16), r = w - (d8 >> 8), f = d8 & 255, s0, s1, y, o;
+        s0 = L[r & (RS_N - 1)];
+        s1 = L[(r - 1) & (RS_N - 1)];
+        y = s0 + (((s1 - s0) * f) >> 8);
+        lp += ((y - lp) * dm) >> 15;
+        y = ((-a * lp) >> 15) + ax + ((a * ay) >> 15);
+        ax = lp; ay = y;
+        y = ((y * fb) >> 15) + x;
+        y = y > 32767 ? 32767 : y < -32767 ? -32767 : y;
+        L[w] = (int16_t)y;
+        w = (w + 1) & (RS_N - 1);
+        o = y;
+        vbl[i] = (int32_t)(((int64_t)vbl[i] * dry + (int64_t)o * mx) >> 15);
+        vbr[i] = (int32_t)(((int64_t)vbr[i] * dry + (int64_t)o * mx) >> 15);
+    }
+    vo->rs_w = w; vo->rs_lp = lp; vo->rs_ax = ax; vo->rs_ay = ay;
+}
 static uint32_t crush_hold;
 static int32_t crush_l, crush_r;
 
@@ -1147,15 +1246,19 @@ static void app_audio(int32_t *out, uint32_t n)
             vo->timer = vo->start;
             vo->start = 0;
             if (eng.retrig) env = 0;
+            if (eng.mot == MO_FORMANTI) { vo->facc = 0; vo->vph = 0; (void)fo_next(vo); vo->facc = 0; }   /* 1.8 */
+            if (eng.mot == MO_RISON) rs_reset(v);
         }
         if (!vo->active) { vis_head[v] = -1; continue; }
 
         /* the grains starting in this block */
         while (vo->gate && vo->timer < (int32_t)n) {
             spawn(vo, (uint32_t)(vo->timer < 0 ? 0 : vo->timer));
-            vo->timer += eng.period + (int32_t)(xrand() % (uint32_t)(eng.period / 5 + 1)) - eng.period / 10;
+            if (eng.mot == MO_FORMANTI) vo->timer += fo_next(vo);   /* 1.8: the note's period */
+            else vo->timer += eng.period + (int32_t)(xrand() % (uint32_t)(eng.period / 5 + 1)) - eng.period / 10;
         }
         vo->timer -= (int32_t)n;
+        vo->vph += (uint32_t)eng.fo_vinc * n;
         if (!eng.freeze) vo->head += (uint32_t)eng.scan_ph * n;
         vis_head[v] = eng.dir == 3u ? -1 : (int32_t)(scan_at(vo->head) >> 8);
 
@@ -1197,6 +1300,7 @@ static void app_audio(int32_t *out, uint32_t n)
             vis_amp[v * NG + k] = g->on ? (uint8_t)(win[wph >> 22] >> 7) : 0;
         }
 
+        if (eng.mot == MO_RISON) rs_block(vo, v, n);   /* 1.8: the grains pluck the voice's string */
         /* the envelope, per frame, and into the mix */
         for (i = 0; i < n; i++) {
             int32_t lv;
@@ -1381,7 +1485,9 @@ static void engine_update(void)
         }
         ly->pos0 = (int32_t)(((uint64_t)(uint32_t)pl * full * 1311u) >> 26);   /* / 51200 */
         ly->area = area < 64 ? 64 : area;
-        ly->spray = (int32_t)(q[P_SPRAY] * full / 200u);
+        ly->spray = q[P_MOTORE] == MO_STIRA ? (int32_t)(q[P_M2] * q[P_M2] * 11025u / 10000u)   /* 1.8, SFOCATURA: up to 0.5 s */
+                  : q[P_MOTORE] == MO_FORMANTI ? (int32_t)(q[P_M3] * 66u / 100u)   /* FORMANTI: each grain the same spot (RESPIRO: 3 ms) */
+                  : (int32_t)(q[P_SPRAY] * full / 200u);
         {   /* VOLUMI (1.5): a level's square, the way a fader sounds; MUTE and SOLO silence it */
             uint32_t vo = q[P_VO1 + L];
             if ((lay_mute >> L & 1u) || (lay_solo && !(lay_solo >> L & 1u))) vo = 0;
@@ -1403,7 +1509,10 @@ static void engine_update(void)
         zone_n = par[P_DISP] ? (uint8_t)n : 0u;
     }
     sq = (int32_t)q[P_SCAN] * 2048 / 100;          /* 0..200 % of the sound's speed, Q12 (1.5: a step 1 %) */
-    eng.dir = q[P_DIR] & 3u;
+    if (q[P_MOTORE] == MO_STIRA) sq = (int32_t)(q[P_M1] * q[P_M1] * 2048u / 10000u);   /* 1.8, VELOCITA': 0 still .. the sound's own pace */
+    if (q[P_MOTORE] == MO_FORMANTI) sq = 0;    /* FORMANTI: the grains alike, period after period (a vowel held): a moving read
+                                                * would shift the pitch by its speed; POSIZIONE (and its LFO) choose the vowel */
+    eng.dir = q[P_MOTORE] == MO_STIRA ? 0u : q[P_DIR] & 3u;
     eng.salto = (uint32_t)q[P_SALTO] * q[P_SALTO] * 429497u;   /* 1.5: its square, hundredths of the area: fine near 0 */
     {   /* the scan as a fraction of the area: of the first layer's frames */
         uint32_t aq = (uint32_t)(sq < 0 ? -sq : sq), ar = (uint32_t)lay[0].area;
@@ -1414,15 +1523,20 @@ static void engine_update(void)
         if (eng.dir == 2u) eng.scan_ph >>= 1;             /* ALTERNATO: there and back in the time of one way */
     }
     ms = SIZE_MS[q[P_SIZE] & 63u];
+    if (q[P_MOTORE] == MO_STIRA) ms = ms < 80u ? 80u : ms > 800u ? 800u : ms;   /* 1.8: long grains, always overlapping */
     gf = ms * 441u / 10u;
+    if (q[P_MOTORE] == MO_FORMANTI) {       /* 1.8, LARGHEZZA: 2 .. 30 ms, the formant's width */
+        gf = (20u + q[P_M2] * q[P_M2] * 280u / 10000u) * 441u / 100u;
+        ms = gf * 10u / 441u;
+    }
     eng.winc = 0xFFFFFFFFu / gf;
     eng.gframes = gf;
     d = DENS_DHZ[q[P_DENS] & 63u];
-    eng.period = (int32_t)(441000u / d);
+    eng.period = q[P_MOTORE] == MO_STIRA ? (int32_t)(gf / 4u) : (int32_t)(441000u / d);   /* STIRAMENTO: four at once */
     eng.pitch_ct = ((int32_t)par[P_PITCH] - 24) * 100 + ((lfo_m[LD_PITCH] * 2400) >> 15);   /* finer: cents */
-    eng.jit_ct = (int32_t)q[P_JIT] * 12;
-    eng.win = (q[P_WIN] & 3u) * (WIN_N + 1u);
-    eng.rev = q[P_REV] * 65536u / 100u;
+    eng.jit_ct = q[P_MOTORE] == MO_STIRA ? (int32_t)(q[P_M4] * 40u / 100u) : q[P_MOTORE] == MO_FORMANTI ? 0 : (int32_t)q[P_JIT] * 12;   /* DERIVA */
+    eng.win = q[P_MOTORE] == MO_STIRA ? 0u : (q[P_WIN] & 3u) * (WIN_N + 1u);   /* STIRAMENTO: soft, always */
+    eng.rev = q[P_MOTORE] == MO_STIRA ? 0u : q[P_REV] * 65536u / 100u;
     a = ENV_MS[q[P_ATK] & 63u] * 441u / 10u;
     eng.atk = (int32_t)((32767u << 8) / a);
     a = ENV_MS[q[P_REL] & 63u] * 441u / 10u;
@@ -1555,6 +1669,30 @@ static void engine_update(void)
     eng.r_dec = RDEC_Q15[q[P_RDEC] > 100u ? 100u : q[P_RDEC]];
     eng.r_tone = (int32_t)(2500u + q[P_RTONE] * 302u);
     eng.r_mod = (int32_t)(q[P_RMOD] * 28u * 256u / 100u) >> 1;        /* +- up to 14 samples */
+    {   /* 1.8: the engine's own knobs */
+        uint32_t m1 = q[P_M1], m2 = q[P_M2], m3 = q[P_M3], m4 = q[P_M4], loss;
+        eng.st_oct = m3 * 65536u / 100u;
+        eng.fo_ct = ((int32_t)m1 - 50) * 24;            /* FORMANTE: +-12 semitones */
+        eng.fo_breath = (int32_t)(m3 * 65536u / 100u);
+        eng.fo_vib = (int32_t)(m4 * 50u / 100u);        /* VIBRATO: up to 50 cents */
+        eng.fo_vinc = 535670;                            /* 5.5 Hz */
+        loss = 16u + (100u - m1) * (100u - m1) * 3277u / 10000u;
+        eng.rs_fb = (int32_t)(32768u - loss);           /* DECADIMENTO: 0.9 .. 0.9995 a pass */
+        eng.rs_damp = (int32_t)(4000u + m2 * 287u);     /* TIMBRO: the loop's low-pass */
+        eng.rs_ap = (int32_t)(m3 * m3 * 24576u / 10000u);   /* DISPERSIONE: the loop's all-pass, 0 .. 0.75 */
+        eng.rs_mix = (int32_t)(m4 * 32767u / 100u);
+        {   /* the pluck: as loud as a grain when the string dies before the next one; less as they pile up
+             * (the string's power ~ what comes in / what it loses a second): sqrt(loss a second / grain-seconds a second) */
+            uint32_t R = loss * 262u * 305u / ((d ? d : 1u) * (ms ? ms : 1u));   /* x 1000 (1e7 / 32768 = 305); no 64-bit division here */
+            if (R > 1000u) R = 1000u;
+            eng.rs_gin = (int32_t)isqrt(R * 1073741u);
+            if (eng.rs_gin > 32767) eng.rs_gin = 32767;
+            if (eng.rs_gin < 256) eng.rs_gin = 256;
+        }
+        eng.mot = q[P_MOTORE] < NMOT ? q[P_MOTORE] : 0u;
+        if (eng.mot == MO_STIRA) d = 4u * 441000u / (gf ? gf : 1u);
+        if (eng.mot == MO_FORMANTI) d = 2u * 441000u / (gf ? gf : 1u);   /* about two at once: spawn() evens them out */
+    }
     ov = d * ms / 100u;                     /* grains overlapping, x100 */
     if (ov > NG * 100u) ov = NG * 100u;
     if (ov < 100u) ov = 100u;
@@ -1912,7 +2050,7 @@ static void note_off(uint32_t note) { if (clk.arp) arp_remove(note); else if (!h
 #define SET_VER 0x4Eu                        /* 1.4.1: and the remembered controller's bond (a pairing's keys) */
 #define NLEARN 32u
 #define PREC_MAGIC 0xA7u
-#define PREC_VER 8u                          /* 1.6: 100 parameters (SCALA, TONICA, USCITA 12 BIT) in 104; 7, 6, 5, 4 and 3 converted */
+#define PREC_VER 9u                          /* 1.8: 104 parameters (MOTORE and its four) in 104; 8 (1.6..1.7: 100), 7, 6, 5, 4 and 3 converted */
 #define PREC_NP 104u
 #define PREC_SIZE 256u
 typedef struct {
@@ -1994,7 +2132,20 @@ static void prec_new15(prec_t *r)
 }
 static void prec_new16(prec_t *r)           /* from 1.5 to 1.6: chromatic, the 12-bit output on */
 {
-    r->p[P_SCALA] = 0; r->p[P_TONICA] = 0; r->p[P_BIT12] = 1; r->p[P_FREE16] = 0;
+    r->p[P_SCALA] = 0; r->p[P_TONICA] = 0; r->p[P_BIT12] = 1; r->p[P_MOTORE] = 0; r->p[P_M1] = r->p[P_M2] = r->p[P_M3] = r->p[P_M4] = 0;
+}
+static const uint8_t MOT_DEF[4][4] = {{0, 0, 0, 0},           /* CLASSICO: none */
+    {20, 30, 15, 20},                       /* STIRAMENTO: VELOCITA', SFOCATURA, ARMONICI, DERIVA */
+    {50, 40, 10, 25},                       /* FORMANTI: FORMANTE, LARGHEZZA, RESPIRO, VIBRATO */
+    {75, 55, 0, 80}};                       /* RISONATORE: DECADIMENTO, TIMBRO, DISPERSIONE, MIX */
+static int prec_up18(prec_t *r)             /* 1.8: a record of 1.6 .. 1.7 (100 parameters, the same layout) to this one */
+{
+    uint32_t k;
+    if (r->magic != PREC_MAGIC || r->ver != 8u || r->np != 100u || r->sum != prec_sum(r)) return 0;
+    r->p[P_MOTORE] = 0;
+    for (k = 0; k < 4u; k++) r->p[P_M1 + k] = 0;
+    r->ver = PREC_VER; r->np = NP; r->sum = prec_sum(r);
+    return 1;
 }
 static int prec_from_14(prec_t *r)         /* a record of 1.4 or 1.5 (88 or 96 parameters in 96, its sum at 240): to this one */
 {
@@ -2064,15 +2215,34 @@ static int prec_from_13(prec_t *r)         /* a record of 1.3 (80 parameters in 
     r->used = 1;
     return 1;
 }
+/* 1.8: two factory presets an engine, in places 9..14, each on one of the eight above */
+#define NFACT18 14u
+typedef struct { uint8_t base, snd, mot, m[4]; char name[12]; uint8_t ov[8][2]; } fact18_t;
+static const fact18_t FACT18[NFACT18 - NFACT] = {
+    {4, 4, MO_STIRA, {12, 45, 10, 25}, "MARE FERMO", {{P_SIZE, 44}, {P_FREEZE, 0}, {P_RMIX, 70}, {P_RDEC, 95}, {P_ATK, 40}, {P_REL, 52}, {P_VOL, 100}, {255, 0}}},
+    {0, 0, MO_STIRA, {25, 25, 45, 15}, "CATTEDRALE", {{P_SIZE, 46}, {P_SHIM, 40}, {P_RMIX, 65}, {P_ATK, 36}, {P_REL, 50}, {255, 0}}},
+    {0, 0, MO_FORMANTI, {42, 45, 15, 30}, "CORO BASSO", {{P_RMIX, 45}, {P_ATK, 24}, {P_REL, 40}, {P_L1D, 100}, {P_L2D, 100}, {P_SND2, 0}, {255, 0}}},
+    {3, 3, MO_FORMANTI, {58, 35, 45, 10}, "SUSSURRO", {{P_RMIX, 50}, {P_ATK, 20}, {P_REL, 38}, {P_L1D, 100}, {P_L2D, 100}, {P_SND2, 0}, {P_VOL, 100}, {255, 0}}},
+    {2, 5, MO_RISON, {70, 60, 0, 85}, "CORDE", {{P_SIZE, 6}, {P_DENS, 8}, {P_ATK, 0}, {P_REL, 44}, {P_RMIX, 30}, {P_DMIX, 20}, {255, 0}}},
+    {1, 6, MO_RISON, {92, 80, 70, 90}, "CAMPANE", {{P_SIZE, 12}, {P_DENS, 4}, {P_ATK, 0}, {P_REL, 54}, {P_RMIX, 55}, {255, 0}}},
+};
 static void prec_factory(uint32_t i)
 {
-    uint32_t k;
+    uint32_t k, b = i;
     prec_t *r = &pr[i];
+    const fact18_t *f = i >= NFACT && i < NFACT18 ? &FACT18[i - NFACT] : 0;
     for (k = 0; k < sizeof *r; k++) ((uint8_t *)r)[k] = 0;
-    if (i >= NFACT) return;
-    for (k = 0; k < NP5; k++) r->p[k] = PRESET0[i][k];
+    if (i >= NFACT18) return;
+    if (f) b = f->base;
+    for (k = 0; k < NP5; k++) r->p[k] = PRESET0[b][k];
     prec_new14(r);
-    seq_default(i, r->sn, r->sp);
+    if (f) {
+        r->p[P_SND] = f->snd; r->p[P_MOTORE] = f->mot;
+        for (k = 0; k < 4u; k++) r->p[P_M1 + k] = f->m[k];
+        for (k = 0; k < 8u && f->ov[k][0] != 255u; k++) r->p[f->ov[k][0]] = f->ov[k][1];
+        for (k = 0; k < 11u && f->name[k]; k++) r->name[k] = f->name[k];
+    }
+    seq_default(b, r->sn, r->sp);
     r->used = 1;
 }
 static void prec_new13(prec_t *r)           /* from before 1.3: the layers as before, LFO 2's last destinations moved on */
@@ -2126,7 +2296,7 @@ static void presets_load(void)
         prec_t *r = &pr[i];
         if (user_read(i * PREC_SIZE, r, sizeof *r) || r->magic != PREC_MAGIC || r->ver != PREC_VER || r->np != NP ||
             r->sum != prec_sum(r)) {
-            if (prec_from_14(r) || prec_from_13(r) || prec_from_10(r) || prec_from_09(r)) save_sectors |= 1u << (i / 16u);   /* converted: written again at the next save */
+            if (prec_up18(r) || prec_from_14(r) || prec_from_13(r) || prec_from_10(r) || prec_from_09(r)) save_sectors |= 1u << (i / 16u);   /* converted: written again at the next save */
             else { prec_factory(i); continue; }
         }
         r->used = 1;
@@ -2291,6 +2461,7 @@ static void mod_rate_text(char *s, uint32_t v)   /* MODULAZIONE's second knob: V
 static const char *pname_of(uint32_t p)      /* MODULAZIONE and NASTRO rename their knobs by type and mode */
 {
     uint32_t t = par[P_MTYPE], m = par[P_NMODE];
+    if (p >= P_M1 && p <= P_M4) return MOT_KNOB[par[P_MOTORE] & 3u][p - P_M1];   /* 1.8: the engine's own */
     if (p == P_MTYPE) return !t ? "TIPO" : t < MT_MET ? "VELVET" : "METALLO";
     if (p == P_MRATE) return t >= MT_MET ? "FREQUENZA" : "VELOCITA'";
     if (p == P_MDEPTH) return t >= MT_MET ? "RITORNO" : "PROFONDITA'";
@@ -2307,11 +2478,39 @@ static void fmt_hund(char *s, uint32_t h)  /* 1.5: hundredths of a percent: "25%
     else { *e++ = '0'; *e++ = '.'; *e++ = (char)('0' + h / 10u); *e++ = (char)('0' + h % 10u); }
     cat(e, "%");
 }
+static int mot_ignores(uint32_t p)          /* 1.8: a knob the engine does without */
+{
+    uint32_t m = par[P_MOTORE];
+    if (m == MO_STIRA) return p == P_SCAN || p == P_DIR || p == P_SPRAY || p == P_DENS || p == P_JIT || p == P_WIN || p == P_REV;
+    if (m == MO_FORMANTI) return p == P_SIZE || p == P_DENS || p == P_JIT || p == P_SPRAY || p == P_SCAN || p == P_DIR;
+    return 0;
+}
 static void value_text(uint32_t p, char *s)
 {
     uint32_t v = par[p];
     char *e = s;
     *s = 0;
+    if (mot_ignores(p)) { cat(s, "-"); return; }
+    if (p == P_MOTORE) { cat(s, MOT_NAME[v & 3u]); return; }
+    if (p >= P_M1 && p <= P_M4) {           /* 1.8: the engine's own */
+        uint32_t m = par[P_MOTORE] & 3u, k = p - P_M1;
+        if (m == MO_CLASSICO) { cat(s, "-"); return; }
+        if (m == MO_STIRA && k == 0u) { if (!v) cat(s, "FERMO"); else fmt_hund(s, v * v); return; }
+        if (m == MO_STIRA && k == 1u) { fmt_u(s, v * v * 500u / 10000u); e = s; while (*e) e++; cat(e, "MS"); return; }
+        if (m == MO_STIRA && k == 3u) { fmt_u(s, v * 40u / 100u); e = s; while (*e) e++; cat(e, " CENT"); return; }
+        if (m == MO_FORMANTI && k == 0u) {   /* semitones, a decimal */
+            int32_t c = ((int32_t)v - 50) * 24, a = c < 0 ? -c : c;
+            *e++ = c < 0 ? '-' : '+';
+            fmt_u(e, (uint32_t)a / 100u); while (*e) e++; *e++ = '.'; *e++ = (char)('0' + (uint32_t)a / 10u % 10u);
+            cat(e, " ST"); return;
+        }
+        if (m == MO_FORMANTI && k == 1u) {   /* milliseconds, a decimal */
+            uint32_t t = 20u + v * v * 280u / 10000u;
+            fmt_u(s, t / 10u); e = s; while (*e) e++; *e++ = '.'; *e++ = (char)('0' + t % 10u); cat(e, "MS"); return;
+        }
+        if (m == MO_FORMANTI && k == 3u) { if (!v) cat(s, "OFF"); else { fmt_u(s, v * 50u / 100u); e = s; while (*e) e++; cat(e, " CENT"); } return; }
+        fmt_u(s, v); e = s; while (*e) e++; cat(e, "%"); return;
+    }
     switch (p) {
     case P_POS: fmt_u(s, v / 2u); e = s; while (*e) e++; cat(e, v & 1u ? ".5%" : "%"); break;
     case P_SIZE: { uint32_t ms = SIZE_MS[v]; if (ms >= 1000u) { fmt_u(s, ms / 1000u); e = s; while (*e) e++; *e++ = '.'; *e++ = (char)('0' + ms / 100u % 10u); cat(e, "S"); } else { fmt_u(s, ms); e = s; while (*e) e++; cat(e, "MS"); } break; }
@@ -2455,6 +2654,31 @@ static void fit_text(char *s, int32_t w)   /* 1.5: cut a text to w pixels (a dot
         if (text_w(&FONT_S, s) <= w) return;
     }
 }
+/* 1.8: the battery. The stock firmware's levels on ADC ch3 (531 / 561 / 591, as Felucca read them from it): 4 bars at 591,
+ * 3 at 561, 2 (yellow) at 531, under it 1 red, blinking. USB power (a host): a green bolt instead */
+static uint32_t batt_level(void)
+{
+    int32_t b = BATT_RAW();
+    if (BATT_USB()) return 5u;
+    return b >= 591 ? 4u : b >= 561 ? 3u : b >= 531 ? 2u : 1u;
+}
+static uint32_t batt_shown(void) { uint32_t l = batt_level(); return l == 1u && (fm1_ms >> 9 & 1u) ? 0u : l; }   /* 0: the blink's off half */
+static int32_t batt_draw(void)               /* on the header's canvas, right-aligned; returns its left edge */
+{
+    uint32_t l = batt_shown(), k;
+    int32_t x = 210, y = 6;
+    uint16_t c = l >= 5u ? RGB(80, 220, 110) : l >= 3u ? RGB(80, 210, 100) : l == 2u ? RGB(240, 200, 60) : RGB(255, 70, 60);
+    uint16_t o = l >= 5u ? c : RGB(150, 146, 140);
+    cv_rect(x, y, 24, 1, o); cv_rect(x, y + 11, 24, 1, o); cv_rect(x, y, 1, 12, o); cv_rect(x + 23, y, 1, 12, o);
+    cv_rect(x + 24, y + 3, 2, 6, o);         /* the cap */
+    if (l >= 5u) {                           /* USB: a bolt */
+        static const int8_t B[9][2] = {{13, 2}, {12, 3}, {11, 4}, {10, 5}, {9, 6}, {13, 5}, {12, 6}, {11, 7}, {10, 8}};
+        for (k = 0; k < 9u; k++) cv_rect(x + B[k][0] - 1, y + B[k][1] + 1, 4, 1, c);
+    } else
+        for (k = 0; k < l && k < 4u; k++) cv_rect(x + 2 + 5 * (int32_t)k, y + 2, 4, 8, c);
+    return x;
+}
+static uint32_t batt_seen;                   /* what the header shows now: redrawn when it changes */
 static void draw_header(void)
 {
     char s[24], nm[16], *e;
@@ -2471,27 +2695,28 @@ static void draw_header(void)
         lx = cv_text(lx + 6, 4, &FONT_S, DI[par[P_DIR] & 3u], C_LAB);   /* the scan's direction */
         if (bt_link_mark) lx = cv_text(lx + 4, 4, &FONT_S, "BT", bt_link_mark == 2u ? RGB(110, 200, 255) : C_TAB);
     }
-    e = s; *e++ = 'P'; fmt_u(e, (pend_preset >= 0 ? (uint32_t)pend_preset : cur_preset) + 1u); while (*e) e++;
-    if (edited && pend_preset < 0) *e++ = '*';
-    *e = 0;
-    rx = 232 - text_w(&FONT_S, s);           /* the preset's number in a little tag */
-    cv_card(rx - 5, 3, text_w(&FONT_S, s) + 10, 18, pend_preset >= 0 ? RGB(60, 40, 14) : RGB(30, 28, 26),
-            pend_preset >= 0 ? C_ACC : RGB(58, 54, 50), C_BAND);
-    cv_text(rx, 4, &FONT_S, s, pend_preset >= 0 ? C_ACC : edited ? C_ACC2 : C_LAB);
-    rx -= 5;
-    e = s;
-    if (pend_preset >= 0) cat(e, preset_name((uint32_t)pend_preset));   /* the preset the knob points at */
-    else {
-        uint32_t nl = layers_active();
-        fmt_u(e, par[P_SND] + 1u); while (*e) e++; *e++ = ' '; e = cat(e, snd_name(par[P_SND]));
-        if (nl) { *e++ = ' '; *e++ = '+'; *e++ = (char)('0' + nl); *e = 0; }   /* the other layers sounding */
+    rx = batt_draw() - 6;                    /* 1.8: the battery on the right, as the stock firmware has it */
+    {   /* 1.8, the middle: the preset's number in its tag and the engine (the sound is on HOME's STRATI) */
+        char t[24];
+        int32_t w, tw;
+        e = t; *e++ = 'P'; fmt_u(e, (pend_preset >= 0 ? (uint32_t)pend_preset : cur_preset) + 1u); while (*e) e++;
+        if (edited && pend_preset < 0) *e++ = '*';
+        *e = 0;
+        e = s;
+        if (pend_preset >= 0) cat(e, preset_name((uint32_t)pend_preset));   /* the preset the knob points at */
+        else cat(e, MOT_NAME[par[P_MOTORE] & 3u]);
+        lx += 10;
+        tw = text_w(&FONT_S, t);
+        fit_text(s, rx - lx - tw - 18);
+        w = tw + 10 + 6 + text_w(&FONT_S, s);
+        x = 128 - w / 2;
+        if (x < lx) x = lx;
+        if (x + w > rx) x = rx - w;
+        cv_card(x, 3, tw + 10, 18, pend_preset >= 0 ? RGB(60, 40, 14) : RGB(30, 28, 26),
+                pend_preset >= 0 ? C_ACC : RGB(58, 54, 50), C_BAND);
+        cv_text(x + 5, 4, &FONT_S, t, pend_preset >= 0 ? C_ACC : edited ? C_ACC2 : C_LAB);
+        cv_text(x + tw + 16, 4, &FONT_S, s, pend_preset >= 0 ? C_ACC : par[P_MOTORE] ? C_WHITE : C_LAB);
     }
-    lx += 10; rx -= 8;                      /* the middle: between the two, never over them */
-    fit_text(s, rx - lx);
-    x = 128 - text_w(&FONT_S, s) / 2;
-    if (x < lx) x = lx;
-    if (x + text_w(&FONT_S, s) > rx) x = rx - text_w(&FONT_S, s);
-    cv_text(x, 4, &FONT_S, s, pend_preset >= 0 ? C_ACC : C_WHITE);
     cv_blit(0, 0);
 }
 
@@ -3131,12 +3356,23 @@ static void draw_flash(void)
     for (i = 0; i < n; i++) if (PG_ORDER[i] == page) at = (int32_t)i;
     lcd_fill(0, 140, 240, 6, C_BLACK);
     cv_begin(240, 88, C_BLACK);
+    if (page == PG_MOT) {                   /* 1.8, ALGORITHM: the engine, big, and its neighbours */
+        uint32_t m = par[P_MOTORE] & 3u;
+        w = text_w(&FONT_L, MOT_NAME[m]);
+        cv_text(120 - w / 2, 22, &FONT_L, MOT_NAME[m], C_ACC);
+        cv_rect(120 - w / 2, 56, w, 2, C_RULE);
+        if (m) cv_text(6, 66, &FONT_S, MOT_NAME[m - 1u], C_LAB);
+        if (m + 1u < NMOT) { w = text_w(&FONT_S, MOT_NAME[m + 1u]); cv_text(234 - w, 66, &FONT_S, MOT_NAME[m + 1u], C_LAB); }
+        w = text_w(&FONT_S, "MOTORE");
+        cv_text(120 - w / 2, 2, &FONT_S, "MOTORE", C_LAB);
+    } else {
     w = text_w(&FONT_L, PAGE[page]);
     cv_text(120 - w / 2, 22, &FONT_L, PAGE[page], C_ACC);
     cv_rect(120 - w / 2, 56, w, 2, C_RULE);   /* 1.7: underlined */
     cv_text(6, 66, &FONT_S, PAGE[PG_ORDER[(at + (int32_t)n - 1) % (int32_t)n]], C_LAB);   /* the one before, the one after */
     w = text_w(&FONT_S, PAGE[PG_ORDER[(at + 1) % (int32_t)n]]);
     cv_text(234 - w, 66, &FONT_S, PAGE[PG_ORDER[(at + 1) % (int32_t)n]], C_LAB);
+    }
     cv_blit(0, 146);
     lcd_fill(0, 234, 240, 6, C_BLACK);
 }
@@ -3414,8 +3650,8 @@ static void midi_in(uint32_t st, uint32_t d1, uint32_t d2)
     if (store.rx >= 2u && (st & 15u) != store.rx - 2u) return;   /* RICEVI CANALE n: that channel only */
     if (hi == 0x90u && d2) { note_on(d1, d2); if (rec) step_write(d1); }
     else if (hi == 0x80u || hi == 0x90u) note_off(d1);
-    else if (hi == 0xB0u && ((d1 >= 20u && d1 < 60u) || (d1 >= 70u && d1 < 90u) || (d1 >= 102u && d1 < 110u))) {
-        uint32_t p = d1 < 60u ? d1 - 20u : d1 < 90u ? d1 - 70u + P_SND : d1 - 102u + P_MTYPE;
+    else if (hi == 0xB0u && ((d1 >= 20u && d1 < 60u) || (d1 >= 70u && d1 < 90u) || (d1 >= 102u && d1 < 115u))) {
+        uint32_t p = d1 < 60u ? d1 - 20u : d1 < 90u ? d1 - 70u + P_SND : d1 < 110u ? d1 - 102u + P_MTYPE : d1 - 110u + P_MOTORE;   /* 1.8: 110..114 MOTORE */
         param_set(p, d2 * PMAX[p] / 127u);
     } else if (hi == 0xC0u && d1 < NPRESET) {   /* Program Change 0..63: that preset, now */
         pend_preset = -1; preset_recall(d1); dirty_hdr = 1; dirty_cells = 0xF;
@@ -3538,7 +3774,7 @@ static void app_step(void)
     if (save_mode && ((b & ~(1u << BTN_SAVE)) || fm1_ms - t_savemode > 20000u)) {   /* another button, or 20 s: no save */
         save_mode = 0; dirty_tabs = 1; dirty_hdr = 1;
     }
-    if (b & (1u << BTN_EDIT)) goto_page(PG_GRANI);
+    if (b & (1u << BTN_EDIT)) goto_page(page == PG_GRANI ? PG_MOT : PG_GRANI);   /* GRANI, MOTORE (1.8) */
     if (b & (1u << BTN_ENV)) goto_page(page == PG_FORMA ? PG_TAST : PG_FORMA);   /* FORMA, TASTIERA (1.6) */
     if (b & (1u << BTN_GLO))                /* VOLUMI, PAN STRATI, MIX, MIDI (BT) */
         goto_page(page == PG_VOL ? PG_LPAN : page == PG_LPAN ? PG_MIX : page == PG_MIX ? PG_MIDI :
@@ -3628,21 +3864,29 @@ static void app_step(void)
         if (rec) {                          /* in REC: the position, a step's own place in the sound */
             param_change(P_POS, accel(d, 200));
             if (page == PG_MOTO) dirty_cells |= 1u;
-        } else {                            /* the pages, ARP and SEQ left to their buttons */
-            uint32_t i, n = sizeof PG_ORDER;
-            int32_t at = 0;
-            for (i = 0; i < n; i++) if (PG_ORDER[i] == page) at = (int32_t)i;
-            at += d > 0 ? 1 : -1;
-            if (at < 0) at = (int32_t)n - 1;
-            if (at >= (int32_t)n) at = 0;
-            goto_page(PG_ORDER[at]);
-            t_flash = fm1_ms ? fm1_ms : 1u;
-            draw_flash();
+        } else if (learn_on) { learn_par = P_SND; t_learn = fm1_ms; learn_try(); }
+        else {                              /* 1.8: the sound (ALGORITHM's before), named in the strip */
+            char t[24], *e;
+            param_change(P_SND, d);
+            e = cat(t, "CAMPIONE ");
+            fmt_u(e, par[P_SND] + 1u); while (*e) e++; *e++ = ' '; *e = 0;
+            learn_say(t, snd_name(par[P_SND]));
+            if (page == PG_STR) dirty_cells |= 1u;
         }
     }
-    if ((d = fm1_enc_take(ENC_ALGORITHM)) != 0) {
-        if (learn_on) { learn_par = P_SND; t_learn = fm1_ms; learn_try(); }
-        else param_change(P_SND, d);
+    if ((d = fm1_enc_take(ENC_ALGORITHM)) != 0) {   /* 1.8: the engine, and its page */
+        if (learn_on) { learn_par = P_MOTORE; t_learn = fm1_ms; learn_try(); }
+        else {
+            uint32_t was = par[P_MOTORE], k;
+            param_change(P_MOTORE, d);
+            if (par[P_MOTORE] != was) {
+                for (k = 0; k < 4u; k++) par[P_M1 + k] = base[P_M1 + k] = MOT_DEF[par[P_MOTORE] & 3u][k];   /* its own start */
+                goto_page(PG_MOT);
+                t_flash = fm1_ms ? fm1_ms : 1u;
+                draw_flash();
+                dirty_hdr = 1;
+            }
+        }
     }
     if ((d = fm1_enc_take(ENC_PRESETS)) != 0) {
         if (save_mode) {                    /* choosing where to save */
@@ -3717,7 +3961,7 @@ static void app_step(void)
         uint32_t now = clk.arp | clk.run << 1 | hold << 2 | (uint32_t)par[P_TASTO] << 3;
         if (now != was) { was = now; if (page == PG_ARP || page == PG_SEQ) dirty_tabs = 1; }
     }
-    fm1_led_key(BTN_EDIT, page == PG_GRANI);
+    fm1_led_key(BTN_EDIT, page == PG_GRANI || page == PG_MOT);
     fm1_led_key(BTN_ENV, page == PG_FORMA || page == PG_TAST);
     fm1_led_key(BTN_GLO, page == PG_MIX || page == PG_VOL || page == PG_LPAN || page == PG_MIDI || page == PG_BT);
     fm1_led_key(BTN_FX, page == PG_FILT || page == PG_MOD || page == PG_DLY || page == PG_NAS2 || page == PG_RIV || page == PG_RIV2);
@@ -3733,6 +3977,7 @@ static void app_step(void)
     /* the screen: what changed, the outline 25 times a second */
     if (lfo_tick()) engine_update();        /* the LFOs move their destinations */
     if (t_flash && fm1_ms - t_flash > 700u) { t_flash = 0; dirty_cells = 0xF; }   /* the page's name, then its knobs */
+    if (batt_shown() != batt_seen) { batt_seen = batt_shown(); dirty_hdr = 1; }   /* 1.8: the battery's level, its blink */
     if (dirty_hdr) { dirty_hdr = 0; draw_header(); }
     if (dirty_tabs) { dirty_tabs = 0; draw_tabs(); }
     {   /* while SAVE asks: the name where the knobs were; after, the knobs again */
@@ -3881,7 +4126,7 @@ static void app_sysex(const uint8_t *p, uint32_t n)
         uint8_t *b = (uint8_t *)&r;
         for (k = 0; k < sizeof r; k++) b[k] = (uint8_t)((p[2 + 2u * k] & 15u) << 4 | (p[3 + 2u * k] & 15u));
         i = p[1];
-        if (r.magic == PREC_MAGIC && r.ver == PREC_VER && r.np == NP && r.sum == prec_sum(&r) && r.used) {
+        if (prec_up18(&r) || (r.magic == PREC_MAGIC && r.ver == PREC_VER && r.np == NP && r.sum == prec_sum(&r) && r.used)) {
             for (k = 0; k < NP; k++) if (r.p[k] > PMAX[k]) r.p[k] = PMAX[k];
             r.name[11] = 0;
             pr[i] = r;

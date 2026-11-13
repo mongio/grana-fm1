@@ -81,6 +81,9 @@ static volatile uint32_t fm1_ms;                /* milliseconds since power-on (
 #include "fm1_flash.h"
 static uint8_t flash_ok;
 static uint32_t flash_id;                       /* 0x856014 Puya, 0xB36014 UC25HQ80 (newer FM-1s) */
+static int32_t batt_raw;                        /* 1.8: ADC ch3 (the battery's divider), smoothed; 0 = not read yet */
+#define BATT_RAW() batt_raw
+#define BATT_USB() (usb.config && !usb.suspended)   /* a host powers the FM-1 (no separate charger line) */
 static int st_read(uint32_t off, void *dst, uint32_t n)
 {
     uint8_t *d = dst;
@@ -339,6 +342,14 @@ static void platform_poll(void)
     }
     if (fm1_ms >= 30000u && bootguard.pending)
         bootguard_clear(&bootguard);            /* 30 s up: this firmware boots */
+    {   /* 1.8: the battery, ten times a second */
+        static uint32_t t_b;
+        int32_t b;
+        if (fm1_ms - t_b >= 100u && (b = fm1_adc_read(FM1_ADC_BATT)) > 0) {
+            t_b = fm1_ms;
+            batt_raw = batt_raw ? batt_raw + (b - batt_raw) / 16 : b;
+        }
+    }
     if ((a = fm1_adc_read(FM1_ADC_MASTER)) >= 0) {
         uint32_t k10;
         knob_avg += (a * 16 - knob_avg) / 8;
