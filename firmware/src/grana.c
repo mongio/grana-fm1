@@ -151,7 +151,7 @@ static const char *const PNAME[NPAR] = {"POSIZIONE", "AREA", "SCAN", "DIREZIONE"
                                         "MOTORE 1", "MOTORE 2", "MOTORE 3", "MOTORE 4"};
 enum { MO_CLASSICO, MO_STIRA, MO_FORMANTI, MO_RISON, NMOT };   /* 1.8: the engines, on ALGORITHM */
 static const char *const MOT_NAME[NMOT] = {"CLASSICO", "STIRAMENTO", "FORMANTI", "RISONATORE"};
-static const char *const MOT_KNOB[NMOT][4] = {{"", "", "", ""}, {"VELOCITA'", "SFOCATURA", "ARMONICI", "DERIVA"},
+static const char *const MOT_KNOB[NMOT][4] = {{"RITMO", "CAOS", "INTERVALLI", "GLISSANDO"},   /* 1.8.1 */ {"VELOCITA'", "SFOCATURA", "ARMONICI", "DERIVA"},
                                               {"FORMANTE", "LARGHEZZA", "RESPIRO", "VIBRATO"},
                                               {"DECADIMENTO", "TIMBRO", "DISPERSIONE", "MIX"}};
 static const char *const PAGE[NPAGE + 2u] = {"MOTO", "GRANI", "FORMA", "MIX", "NASTRO", "RIVERBERO", "ARP", "SEQ", "SPECIALI",
@@ -304,6 +304,8 @@ static struct {
     volatile uint32_t bit12;                /* 1.6: the output cut to 12 bits */
     volatile uint32_t mot;                  /* 1.8: the engine (MO_*) */
     volatile uint32_t st_oct;               /* STIRAMENTO: a grain an octave away, 0..65536 */
+    volatile int32_t cl_rit, cl_caos, cl_iband, cl_iprob, cl_gl;   /* 1.8.1, CLASSICO: RITMO (frames a step, 0 free), CAOS (0..65536),
+                                                                     * INTERVALLI (0 off, 1 octaves, 2 + fifths, 3 the scale; its chance), GLISSANDO (cents) */
     volatile int32_t fo_ct, fo_breath, fo_vib, fo_vinc, fo_wmax;   /* FORMANTI: the formant's shift (cents), RESPIRO (0..65536),
                                                                      * VIBRATO (cents) and its phase step, the longest grain (frames) */
     volatile int32_t rs_fb, rs_damp, rs_ap, rs_mix, rs_gin;   /* RISONATORE: Q15 (rs_gin: the pluck's share, see engine_update) */                /* 1.5: RIPETI's repeats go on by chance (VARIAZIONE), up to RITORNO's */
@@ -317,6 +319,7 @@ typedef struct {
     uint32_t wph, winc;
     int32_t gl, gr;                         /* pan gains, Q15 */
     uint32_t delay;                         /* frames to wait in this block */
+    int32_t ds8;                            /* 1.8.1, GLISSANDO: the step's change a frame, Q20 */
     uint32_t gen;                           /* its layer's load */
     uint8_t on, lay;
 } grain_t;
@@ -417,6 +420,21 @@ static void spawn(voice_t *v, uint32_t at)
     p = eng.pitch_ct + v->base_ct + ly->ct;
     if (eng.mot == MO_FORMANTI) p = eng.fo_ct + ly->ct;    /* 1.8: read at the sound's own pace, the note is the grains' rate */
     if (eng.jit_ct > 0) p += (int32_t)(xrand() % (uint32_t)(2 * eng.jit_ct + 1)) - eng.jit_ct;
+    if (eng.cl_iband && (int32_t)(xrand() & 0xFFFFu) < eng.cl_iprob) {   /* 1.8.1, INTERVALLI: a musical leap */
+        static const int8_t OCT[2] = {12, -12}, FIF[6] = {12, -12, 7, 19, -5, 24};
+        int32_t st = 0;
+        uint32_t r = xrand();
+        if (eng.cl_iband == 1) st = OCT[r & 1u];
+        else if (eng.cl_iband == 2) st = FIF[r % 6u];
+        else {                               /* a note of TASTIERA's scale, within an octave either way */
+            uint32_t m = SCALEM[scale_sel % NSCALE], nt = (uint32_t)(v->base_ct / 100 + 60 + 120), k;
+            for (k = 0; k < 8u; k++) {
+                int32_t c = (int32_t)((r >> (4u * k)) % 25u) - 12;
+                if (c && (m >> ((nt + (uint32_t)(c + 12) - scale_ton) % 12u) & 1u)) { st = c; break; }
+            }
+        }
+        p += st * 100;
+    }
     if (eng.mot == MO_STIRA && (xrand() & 0xFFFFu) < eng.st_oct) {   /* ARMONICI: an octave up, down, or a twelfth up */
         uint32_t o = xrand() & 3u;
         p += o < 2u ? 1200 : o == 2u ? -1200 : 1902;
@@ -434,6 +452,14 @@ static void spawn(voice_t *v, uint32_t at)
     }
     g->wph = 0;
     g->winc = eng.winc;
+    g->ds8 = 0;
+    if (eng.cl_gl) {                         /* 1.8.1, GLISSANDO: the step at the end, reached a frame at a time */
+        int32_t end = (int32_t)cents_step(p + eng.cl_gl), st = (int32_t)cents_step(p), fr = (int32_t)eng.gframes;
+        if (ly->r11) { end >>= 1; st >>= 1; }
+        if (fr < 1) fr = 1;
+        g->ds8 = ((end - st) << 8) / fr;
+        if (g->step < 0) g->ds8 = -g->ds8;
+    }
     if (eng.mot == MO_FORMANTI && v->per8 > 0) {    /* 1.8: at most 7 at once (8 a voice); about two sound as one */
         uint32_t per = (uint32_t)v->per8 >> 8, gfr = eng.gframes, amp;
         if (per < 1u) per = 1u;
@@ -1214,6 +1240,15 @@ static void rs_block(voice_t *vo, uint32_t v, uint32_t n)
 static uint32_t crush_hold;
 static int32_t crush_l, crush_r;
 
+static uint32_t afr;                         /* 1.8.1: the frames played (RITMO's grid) */
+static int32_t neg_ln8(uint32_t u)            /* -ln(u / 65536), Q8 (u 1..65535): log2 from the top bit, the rest straight */
+{
+    uint32_t b = 15u, m;
+    if (!u) u = 1u;
+    while (!(u >> b)) b--;
+    m = (u << (15u - b)) & 0x7FFFu;
+    return (int32_t)(((((16u - b) << 8) - (m >> 7)) * 177u) >> 8);
+}
 static void app_audio(int32_t *out, uint32_t n)
 {
     uint32_t len = 0, v, k, i, t0 = fm1_ticks();
@@ -1255,6 +1290,18 @@ static void app_audio(int32_t *out, uint32_t n)
         while (vo->gate && vo->timer < (int32_t)n) {
             spawn(vo, (uint32_t)(vo->timer < 0 ? 0 : vo->timer));
             if (eng.mot == MO_FORMANTI) vo->timer += fo_next(vo);   /* 1.8: the note's period */
+            else if (eng.cl_rit > 0) {       /* 1.8.1, RITMO: the next step of the tempo's grid (shared by every voice) */
+                uint32_t per = (uint32_t)eng.cl_rit, at = afr + (uint32_t)(vo->timer < 0 ? 0 : vo->timer), nx = (at / per + 1u) * per;
+                uint32_t r = xrand() & 0xFFFFu;
+                if ((int32_t)r < eng.cl_caos / 3) nx += per;               /* CAOS: a step left out */
+                else if ((int32_t)r < eng.cl_caos * 2 / 3) nx -= per / 2u; /* or one in between */
+                if ((int32_t)(nx - afr) <= vo->timer) nx += per;
+                vo->timer = (int32_t)(nx - afr);
+            } else if (eng.cl_caos) {        /* 1.8.1, CAOS: from even to bunches and gaps (an exponential's share) */
+                int32_t pe = eng.period, u = (int32_t)(pe + (int32_t)(xrand() % (uint32_t)(pe / 5 + 1)) - pe / 10);
+                int32_t e = (int32_t)(((int64_t)pe * neg_ln8(xrand() & 0xFFFFu)) >> 8), c = eng.cl_caos;
+                vo->timer += (int32_t)(((int64_t)u * (65536 - c) + (int64_t)e * c) >> 16) + 1;
+            }
             else vo->timer += eng.period + (int32_t)(xrand() % (uint32_t)(eng.period / 5 + 1)) - eng.period / 10;
         }
         vo->timer -= (int32_t)n;
@@ -1277,6 +1324,26 @@ static void app_audio(int32_t *out, uint32_t n)
             s16 = (const int16_t *)((const uint8_t *)smp_mem + ly->off);
             s8 = (const int8_t *)s16;
             pos = g->pos; step = g->step; wph = g->wph; winc = g->winc; gl = g->gl; gr = g->gr;
+            if (g->ds8) {                    /* 1.8.1, GLISSANDO: the step moving, Q20 */
+                int32_t st8 = step << 8, ds8 = g->ds8;
+                for (i = g->delay; i < n; i++) {
+                    int32_t a, b, s, fr = pos & 4095, ix = pos >> 12;
+                    uint32_t prev = wph;
+                    if (lofi) { a = s8[ix] * 256; b = s8[ix + 1] * 256; }
+                    else { a = s16[ix]; b = s16[ix + 1]; }
+                    s = a + (((b - a) * fr) >> 12);
+                    s = (s * win[wph >> 22]) >> 15;
+                    vbl[i] += (s * gl) >> 15;
+                    vbr[i] += (s * gr) >> 15;
+                    pos += st8 >> 8;
+                    st8 += ds8;
+                    if (pos >= lenq) pos -= lenq;
+                    else if (pos < 0) pos += lenq;
+                    wph += winc;
+                    if (wph < prev) { g->on = 0; break; }
+                }
+                g->step = st8 >> 8;
+            } else
             for (i = g->delay; i < n; i++) {
                 int32_t a, b, s, fr = pos & 4095, ix = pos >> 12;
                 uint32_t prev = wph;
@@ -1317,6 +1384,7 @@ static void app_audio(int32_t *out, uint32_t n)
         }
     }
 
+    afr += n;
     filter_block(out, n);
     mod_block(out, n);
 
@@ -1689,6 +1757,16 @@ static void engine_update(void)
             if (eng.rs_gin > 32767) eng.rs_gin = 32767;
             if (eng.rs_gin < 256) eng.rs_gin = 256;
         }
+        {   /* 1.8.1, CLASSICO */
+            static const uint8_t DIV[6] = {1, 2, 3, 4, 6, 8};   /* 1/4, 1/8, 1/8T, 1/16, 1/16T, 1/32 */
+            uint32_t mc = q[P_MOTORE] == MO_CLASSICO;
+            uint32_t b10 = bpm10_now() < 100u ? 100u : bpm10_now();   /* an external clock not yet heard: 10 BPM at least */
+            eng.cl_rit = mc && m1 ? (int32_t)(26460000u / b10 / DIV[(m1 - 1u) * 6u / 100u]) : 0;
+            eng.cl_caos = mc ? (int32_t)(m2 * 65536u / 100u) : 0;
+            eng.cl_iband = mc && m3 ? (int32_t)((m3 - 1u) / 34u + 1u) : 0;
+            eng.cl_iprob = mc && m3 ? (int32_t)(16384u + ((m3 - 1u) % 34u) * 49152u / 33u) : 0;
+            eng.cl_gl = mc ? ((int32_t)m4 - 50) * 24 : 0;    /* +-12 semitones over the grain */
+        }
         eng.mot = q[P_MOTORE] < NMOT ? q[P_MOTORE] : 0u;
         if (eng.mot == MO_STIRA) d = 4u * 441000u / (gf ? gf : 1u);
         if (eng.mot == MO_FORMANTI) d = 2u * 441000u / (gf ? gf : 1u);   /* about two at once: spawn() evens them out */
@@ -2050,7 +2128,7 @@ static void note_off(uint32_t note) { if (clk.arp) arp_remove(note); else if (!h
 #define SET_VER 0x4Eu                        /* 1.4.1: and the remembered controller's bond (a pairing's keys) */
 #define NLEARN 32u
 #define PREC_MAGIC 0xA7u
-#define PREC_VER 9u                          /* 1.8: 104 parameters (MOTORE and its four) in 104; 8 (1.6..1.7: 100), 7, 6, 5, 4 and 3 converted */
+#define PREC_VER 10u                         /* 1.8: 104 parameters (MOTORE and its four) in 104; 8 (1.6..1.7: 100), 7, 6, 5, 4 and 3 converted */
 #define PREC_NP 104u
 #define PREC_SIZE 256u
 typedef struct {
@@ -2132,18 +2210,21 @@ static void prec_new15(prec_t *r)
 }
 static void prec_new16(prec_t *r)           /* from 1.5 to 1.6: chromatic, the 12-bit output on */
 {
-    r->p[P_SCALA] = 0; r->p[P_TONICA] = 0; r->p[P_BIT12] = 1; r->p[P_MOTORE] = 0; r->p[P_M1] = r->p[P_M2] = r->p[P_M3] = r->p[P_M4] = 0;
+    r->p[P_SCALA] = 0; r->p[P_TONICA] = 0; r->p[P_BIT12] = 1; r->p[P_MOTORE] = 0; r->p[P_M1] = r->p[P_M2] = r->p[P_M3] = 0; r->p[P_M4] = 50;
 }
-static const uint8_t MOT_DEF[4][4] = {{0, 0, 0, 0},           /* CLASSICO: none */
+static const uint8_t MOT_DEF[4][4] = {{0, 0, 0, 50},          /* CLASSICO (1.8.1): RITMO free, CAOS, INTERVALLI off, GLISSANDO 0 */
     {20, 30, 15, 20},                       /* STIRAMENTO: VELOCITA', SFOCATURA, ARMONICI, DERIVA */
     {50, 40, 10, 25},                       /* FORMANTI: FORMANTE, LARGHEZZA, RESPIRO, VIBRATO */
     {75, 55, 0, 80}};                       /* RISONATORE: DECADIMENTO, TIMBRO, DISPERSIONE, MIX */
 static int prec_up18(prec_t *r)             /* 1.8: a record of 1.6 .. 1.7 (100 parameters, the same layout) to this one */
 {
     uint32_t k;
-    if (r->magic != PREC_MAGIC || r->ver != 8u || r->np != 100u || r->sum != prec_sum(r)) return 0;
-    r->p[P_MOTORE] = 0;
-    for (k = 0; k < 4u; k++) r->p[P_M1 + k] = 0;
+    if (r->magic != PREC_MAGIC || r->np != (r->ver == 8u ? 100u : NP) || (r->ver != 8u && r->ver != 9u) || r->sum != prec_sum(r)) return 0;
+    if (r->ver == 8u) {
+        r->p[P_MOTORE] = 0;
+        for (k = 0; k < 4u; k++) r->p[P_M1 + k] = 0;
+    }
+    if (r->p[P_MOTORE] == MO_CLASSICO) { r->p[P_M1] = r->p[P_M2] = r->p[P_M3] = 0; r->p[P_M4] = 50; }   /* 1.8.1: CLASSICO's own four, all off */
     r->ver = PREC_VER; r->np = NP; r->sum = prec_sum(r);
     return 1;
 }
@@ -2483,6 +2564,7 @@ static int mot_ignores(uint32_t p)          /* 1.8: a knob the engine does witho
     uint32_t m = par[P_MOTORE];
     if (m == MO_STIRA) return p == P_SCAN || p == P_DIR || p == P_SPRAY || p == P_DENS || p == P_JIT || p == P_WIN || p == P_REV;
     if (m == MO_FORMANTI) return p == P_SIZE || p == P_DENS || p == P_JIT || p == P_SPRAY || p == P_SCAN || p == P_DIR;
+    if (m == MO_CLASSICO && par[P_M1]) return p == P_DENS;   /* 1.8.1: RITMO sets the grains' rate */
     return 0;
 }
 static void value_text(uint32_t p, char *s)
@@ -2494,7 +2576,23 @@ static void value_text(uint32_t p, char *s)
     if (p == P_MOTORE) { cat(s, MOT_NAME[v & 3u]); return; }
     if (p >= P_M1 && p <= P_M4) {           /* 1.8: the engine's own */
         uint32_t m = par[P_MOTORE] & 3u, k = p - P_M1;
-        if (m == MO_CLASSICO) { cat(s, "-"); return; }
+        if (m == MO_CLASSICO) {             /* 1.8.1 */
+            static const char *const DV[6] = {"1/4", "1/8", "1/8T", "1/16", "1/16T", "1/32"};
+            static const char *const IB[3] = {"OTTAVE ", "QUINTE ", "SCALA "};
+            if (k == 0u) { cat(s, v ? DV[(v - 1u) * 6u / 100u] : "LIBERO"); return; }
+            if (k == 2u) {
+                if (!v) { cat(s, "OFF"); return; }
+                e = cat(s, IB[(v - 1u) / 34u]);
+                fmt_u(e, 25u + ((v - 1u) % 34u) * 75u / 33u); while (*e) e++; cat(e, "%"); return;
+            }
+            if (k == 3u) {                  /* semitones, a decimal */
+                int32_t c = ((int32_t)v - 50) * 24, a = c < 0 ? -c : c;
+                if (!c) { cat(s, "0"); return; }
+                *e++ = c < 0 ? '-' : '+';
+                fmt_u(e, (uint32_t)a / 100u); while (*e) e++; *e++ = '.'; *e++ = (char)('0' + (uint32_t)a / 10u % 10u);
+                cat(e, " ST"); return;
+            }
+        }
         if (m == MO_STIRA && k == 0u) { if (!v) cat(s, "FERMO"); else fmt_hund(s, v * v); return; }
         if (m == MO_STIRA && k == 1u) { fmt_u(s, v * v * 500u / 10000u); e = s; while (*e) e++; cat(e, "MS"); return; }
         if (m == MO_STIRA && k == 3u) { fmt_u(s, v * 40u / 100u); e = s; while (*e) e++; cat(e, " CENT"); return; }

@@ -36,6 +36,7 @@ const want = [[8, 1, 'MARE FERMO'], [9, 1, 'CATTEDRALE'], [10, 2, 'CORO BASSO'],
 for (const [i, m] of want) { e.midi(0xC0, i, 0); run(300); check(`P${i + 1}: motore ${m}`, par(P_MOTORE) === m, 'motore ' + par(P_MOTORE)); }
 e.midi(0xC0, 0, 0); run(300);
 check('P1: CLASSICO', par(P_MOTORE) === 0);
+check('P1: CLASSICO con RITMO, CAOS, INTERVALLI spenti e GLISSANDO 0 (1.8.1)', par(P_M1) === 0 && par(P_M1 + 1) === 0 && par(P_M1 + 2) === 0 && par(P_M1 + 3) === 50);
 
 // ALGORITHM: the engine, its own start, the MOTORE page
 e.enc(ENC.ALGORITHM, 1); run(100);
@@ -102,7 +103,23 @@ for (const pr of [8, 9, 10, 11, 12, 13]) {
   r[248] = h & 255; r[249] = h >>> 8 & 255; r[250] = h >>> 16 & 255; r[251] = h >>> 24;
   e.presets_in(); run(100);
   e.midi(0xC0, 20, 0); run(300);
-  check('preset 1.7 convertito: CLASSICO, valori conservati', par(P_MOTORE) === 0 && par(P_SND) === 2 && par(0) === 50, `mot ${par(P_MOTORE)} snd ${par(P_SND)} pos ${par(0)}`);
+  check('preset 1.7 convertito: CLASSICO, valori conservati', par(P_MOTORE) === 0 && par(P_SND) === 2 && par(0) === 50 && par(P_M1 + 3) === 50, `mot ${par(P_MOTORE)} snd ${par(P_SND)} pos ${par(0)}`);
+}
+// 1.8.1, RITMO: the grains on the tempo's grid (1/8, 1/16)
+{
+  e.midi(0xC0, 0, 0); run(300);
+  for (const [c, v] of [[40, 0], [39, 0], [102, 0], [106, 0], [71, 0], [72, 0], [73, 0], [24, 0]]) e.midi(0xB0, c, v); run(50);
+  const bpm = par(28) + 20;
+  for (const [name, cc, div] of [['1/8', 30, 2], ['1/16', 75, 4]]) {
+    e.midi(0xB0, 111, cc); run(100);
+    cap = []; e.midi(0x90, 60, 100); run(3000); e.midi(0x80, 60, 0); run(800); const x = cap; cap = null;
+    const w = 220, en = []; for (let i = 0; i + w <= x.length; i += w) { let s = 0; for (let k = 0; k < w; k++) s += x[i + k] * x[i + k]; en.push(s); }
+    const on = []; for (let i = 2; i < en.length; i++) if (en[i] > 6 * (en[i - 2] + 1e3) && (!on.length || i - on[on.length - 1] > 8)) on.push(i);
+    const d = on.slice(1).map((v, i) => (v - on[i]) * 5).sort((a, b) => a - b), med = d[d.length >> 1], want = 60000 / bpm / div;
+    check(`RITMO ${name}: un grano ogni ${Math.round(want)} ms`, Math.abs(med - want) <= 10, med + ' ms');
+    run(2000);
+  }
+  e.midi(0xB0, 111, 0); run(50);
 }
 console.log(`${ok} OK, ${bad} NO`);
 process.exit(bad ? 1 : 0);

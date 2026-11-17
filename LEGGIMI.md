@@ -10,7 +10,7 @@ per caricare i propri campioni e installare il firmware.
 > firmware originale basta reinstallarlo dall'editor ufficiale o dall'[FM-1 Firmware Hub](https://fm1.designburgapps.com).
 > Lo usi a tuo rischio.
 
-Versione **1.8**. Provata su un FM-1 vero (tasti neri) fino alla 1.7; i motori della 1.8 sono provati nel simulatore e
+Versione **1.8.1**. Provata su un FM-1 vero (tasti neri) fino alla 1.7; i motori della 1.8 sono provati nel simulatore e
 nell'emulatore del chip.
 
 ## Installazione
@@ -42,7 +42,7 @@ Nella cartella `rescue/` ci sono gli strumenti e le istruzioni (`rescue/LEGGIMI.
 ## Il suono
 
 - **Quattro motori** scelti con ALGORITHM, ognuno con il suo carattere e una pagina MOTORE con quattro knob propri:
-  CLASSICO (il granulatore di sempre), STIRAMENTO (il tempo si ferma: tappeti infiniti), FORMANTI (l'intonazione
+  CLASSICO (il granulatore di sempre, con RITMO, CAOS, INTERVALLI e GLISSANDO), STIRAMENTO (il tempo si ferma: tappeti infiniti), FORMANTI (l'intonazione
   cambia, il timbro resta: voci e strumenti naturali anche lontano dall'originale), RISONATORE (i grani pizzicano corde
   accordate sulla nota: da qualsiasi campione uno strumento, dalla corda alla campana). Due preset di fabbrica per motore
   (P9–P14).
@@ -83,6 +83,7 @@ Ogni pulsante apre le sue pagine, premuto di nuovo passa alla successiva. KNOB 1
 |  | LFO 2 | FORMA | VELOCITA' | INTENSITA' | DESTINAZIONE |
 |  | SPECIALI | DRONE | FREEZE | CRUSH | MOTORE |
 | EDIT | GRANI | DIMENSIONE | DENSITA' | SPRAY | PITCH |
+|  | MOTORE: CLASSICO | RITMO | CAOS | INTERVALLI | GLISSANDO |
 |  | MOTORE: STIRAMENTO | VELOCITA' | SFOCATURA | ARMONICI | DERIVA |
 |  | MOTORE: FORMANTI | FORMANTE | LARGHEZZA | RESPIRO | VIBRATO |
 |  | MOTORE: RISONATORE | DECADIMENTO | TIMBRO | DISPERSIONE | MIX |

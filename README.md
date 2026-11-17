@@ -12,7 +12,7 @@ and install the firmware.
 > firmware, reinstall it with the official updater or the [FM-1 Firmware Hub](https://fm1.designburgapps.com).
 > Use at your own risk.
 
-Version **1.8**. Tested on a real FM-1 (black keys) up to 1.7; the 1.8 engines are tested in the simulator and the chip
+Version **1.8.1**. Tested on a real FM-1 (black keys) up to 1.7; the 1.8 engines are tested in the simulator and the chip
 emulator.
 
 ## Install
@@ -46,7 +46,7 @@ other tools.
 ## The sound
 
 - **Four engines** on ALGORITHM, each with its own character and a MOTORE page of four knobs: CLASSICO (the granulator
-  as always), STIRAMENTO (time stands still: endless pads), FORMANTI (the pitch moves, the timbre stays: voices and
+  as always, with RITMO tempo-locked grains, CAOS, musical INTERVALLI and GLISSANDO), STIRAMENTO (time stands still: endless pads), FORMANTI (the pitch moves, the timbre stays: voices and
   instruments natural far from their pitch), RISONATORE (the grains pluck strings tuned to the note: an instrument from
   any sample, from string to bell). Two factory presets an engine (P9–P14).
 - Up to 4 layers played together (SOVRAPPOSTI) or split across the keyboard (SPLIT), each with its own pitch, start,
@@ -89,6 +89,7 @@ page's four parameters. Names as on the screen.
 |  | LFO 2 | FORMA | VELOCITA' | INTENSITA' | DESTINAZIONE |
 |  | SPECIALI | DRONE | FREEZE | CRUSH | MOTORE |
 | EDIT | GRANI | DIMENSIONE | DENSITA' | SPRAY | PITCH |
+|  | MOTORE: CLASSICO | RITMO | CAOS | INTERVALLI | GLISSANDO |
 |  | MOTORE: STIRAMENTO | VELOCITA' | SFOCATURA | ARMONICI | DERIVA |
 |  | MOTORE: FORMANTI | FORMANTE | LARGHEZZA | RESPIRO | VIBRATO |
 |  | MOTORE: RISONATORE | DECADIMENTO | TIMBRO | DISPERSIONE | MIX |
