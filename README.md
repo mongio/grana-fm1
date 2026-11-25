@@ -12,7 +12,7 @@ and install the firmware.
 > firmware, reinstall it with the official updater or the [FM-1 Firmware Hub](https://fm1.designburgapps.com).
 > Use at your own risk.
 
-Version **1.8.2**. Tested on a real FM-1 (black keys) up to 1.7; the 1.8 engines are tested in the simulator and the chip
+Version **1.9**. Tested on a real FM-1 (black keys) up to 1.7; the 1.8 engines are tested in the simulator and the chip
 emulator.
 
 ## Install

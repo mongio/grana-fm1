@@ -2481,15 +2481,143 @@ static void preset_recall(uint32_t i)
 #define C_TRACK RGB(32, 34, 42)
 #define C_BAND RGB(16, 15, 14)
 #define C_RULE RGB(54, 40, 22)
-static void cell_begin(void) { cv_begin(118, 50, C_BLACK); cv_card(0, 0, 118, 50, C_CARD, C_EDGE, C_BLACK); }
-static void cell_value(const char *s, uint16_t col)   /* the value, big unless it does not fit */
+static void fit_text(char *s, int32_t w)   /* 1.5: cut a text to w pixels (a dot where it was cut) */
 {
-    const felucca_font_t *f = &FONT_L;
-    if (text_w(f, s) > 112) f = &FONT_S;
-    cv_text(6, f == &FONT_L ? 14 : 21, f, s, col);
+    uint32_t n = 0;
+    while (s[n]) n++;
+    if (text_w(&FONT_S, s) <= w) return;
+    while (n > 1u) {
+        s[--n] = 0;
+        s[n - 1u] = '.';
+        if (text_w(&FONT_S, s) <= w) return;
+    }
 }
-#define WAV_Y 28
-#define WAV_H 86
+/* 1.9: the screen redrawn. A thin header (the preset, its number, HOLD, the battery), the sound tall in the middle,
+ * the page's line with the engine in its colour, the four knobs in a row under the four encoders, each an arc */
+#define WAV_Y 22
+#define WAV_H 120
+#define TAB_Y 144                            /* the page's line, 18 rows */
+#define CELL_Y 162                           /* the knobs: four cells of 60 x 78 */
+#define C_HAIR RGB(40, 38, 36)
+#define C_KTRK RGB(44, 44, 52)
+static const uint16_t MOT_ACC[4] = {RGB(255, 176, 64), RGB(130, 200, 255), RGB(255, 130, 170), RGB(96, 210, 170)};
+static uint16_t mot_acc(void) { return MOT_ACC[par[P_MOTORE] & 3u]; }
+static int32_t ang10(int32_t dx, int32_t dy)  /* the angle of (dx, dy), y down, clockwise from +x, tenths of a degree */
+{
+    int32_t ax = dx < 0 ? -dx : dx, ay = dy < 0 ? -dy : dy, mn = ax < ay ? ax : ay, mx = ax < ay ? ay : ax, t, a;
+    if (!mx) return 0;
+    t = mn * 32768 / mx;
+    a = (450 * t + 156 * ((t * (32768 - t)) >> 15)) >> 15;   /* atan, within a quarter of a degree */
+    if (ay > ax) a = 900 - a;
+    if (dx < 0) a = 1800 - a;
+    if (dy < 0) a = 3600 - a;
+    return a;
+}
+/* a knob's arc: 270 degrees from the lower left, through the top, to the lower right. Each pixel's distance from the
+ * centre (eighths of a pixel) and its place along the sweep, worked out once */
+#define KB_X0 8
+#define KB_Y0 15
+#define KB_W 45                               /* the box, x 8..52 */
+#define KB_HW 23                              /* the table: its left half, x 8..30 (the arc is the same mirrored) */
+#define KB_H 42
+#define K_CX 30
+#define K_CY 36
+#define K_R8 120                              /* radius 15 */
+static uint8_t kb_d[KB_HW * KB_H];
+static int16_t kb_u[KB_HW * KB_H];
+static uint8_t kb_ok;
+static void kb_init(void)
+{
+    uint32_t i;
+    for (i = 0; i < KB_HW * KB_H; i++) {
+        int32_t dx = (KB_X0 + (int32_t)(i % KB_HW) - K_CX) * 8, dy = (KB_Y0 + (int32_t)(i / KB_HW) - K_CY) * 8;
+        uint32_t d = isqrt((uint32_t)(dx * dx + dy * dy));
+        kb_d[i] = (uint8_t)(d > 255u ? 255u : d);
+        kb_u[i] = (int16_t)((ang10(dx, dy) - 1350 + 3600) % 3600);   /* 0 at the start, 2700 at the end */
+    }
+    kb_ok = 1;
+}
+static inline int32_t cov8(int32_t hw, int32_t e) { int32_t c = hw + 4 - e; return c <= 0 ? 0 : c >= 8 ? 15 : c * 15 / 8; }
+/* the arc on the cell's canvas: v and lfo 0..2700 (lfo < 0: none), steps > 1: marks for each, idle: only the track */
+static void knob_arc(int32_t v, int32_t lfo, uint32_t steps, int idle, int active, uint16_t acc)
+{
+    uint32_t i, k;
+    uint16_t ptr = active ? RGB(235, 232, 225) : RGB(160, 158, 165);
+    if (!kb_ok) kb_init();
+    for (i = 0; i < KB_W * KB_H; i++) {
+        int32_t x = KB_X0 + (int32_t)(i % KB_W), y = KB_Y0 + (int32_t)(i / KB_W), e, a, d, u;
+        uint32_t ti = (uint32_t)(y - KB_Y0) * KB_HW + (uint32_t)(x <= K_CX ? x - KB_X0 : 2 * K_CX - x - KB_X0);
+        d = kb_d[ti]; u = kb_u[ti];
+        if (x > K_CX) u = (2700 - u + 3600) % 3600;   /* mirrored */
+        if (u <= 2700) {                     /* the ring: 2.5 px, the value's part in colour */
+            e = d - K_R8; if (e < 0) e = -e;
+            if ((a = cov8(10, e)) != 0) cv_blend(x, y, !idle && u <= v ? acc : C_KTRK, (uint32_t)a);
+        }
+        if (idle) continue;
+        if (d >= 24 && d <= 80) {            /* the pointer, from near the centre */
+            int32_t du = u - v; if (du < 0) du = -du; if (du > 1800) du = 3600 - du;
+            if (du < 600 && (a = cov8(6, du * d / 573)) != 0) cv_blend(x, y, ptr, (uint32_t)a);
+        }
+        if (steps > 1u && d >= K_R8 + 28 && d <= K_R8 + 48)   /* a value of a few steps: a mark each */
+            for (k = 0; k < steps; k++) {
+                int32_t su = (int32_t)(k * 2700u / (steps - 1u)), du = u - su; if (du < 0) du = -du;
+                if (du < 300 && (a = cov8(5, du * d / 573)) != 0) cv_blend(x, y, su == v ? acc : C_LAB, (uint32_t)a);
+            }
+        if (lfo >= 0) {                      /* an LFO on it: a white dot where it is now */
+            int32_t du = u - lfo, t8, r8; if (du < 0) du = -du;
+            if (du < 400) {
+                e = d - K_R8; t8 = du * K_R8 / 573;
+                r8 = (int32_t)isqrt((uint32_t)(e * e + t8 * t8));
+                if ((a = cov8(18, r8)) != 0) cv_blend(x, y, C_WHITE, (uint32_t)a);
+            }
+        }
+    }
+}
+/* the short names: the pixel letters are 8 px, seven to a knob */
+static const char *const SHORT[][2] = {{"POSIZIONE", "POSIZ."}, {"DIREZIONE", "DIREZ."}, {"DIMENSIONE", "DIMENS."},
+    {"COMPRESSORE", "COMPR."}, {"RILASCIO", "RILAS."}, {"FINESTRA", "FINESTR"}, {"MODULAZIONE", "MODUL."},
+    {"DIVISIONE", "DIVIS."}, {"FREQUENZA", "FREQ."}, {"RISONANZA", "RISON."}, {"MOVIMENTO", "MOVIM."},
+    {"STRATO 1", "STRATO1"}, {"STRATO 2", "STRATO2"}, {"STRATO 3", "STRATO3"}, {"STRATO 4", "STRATO4"},
+    {"QUANTITA' 1", "QUANT.1"}, {"QUANTITA' 2", "QUANT.2"}, {"QUANTITA' 3", "QUANT.3"}, {"QUANTITA' 4", "QUANT.4"},
+    {"VELOCITA'", "VELOC."}, {"INTENSITA'", "INTENS."}, {"DESTINAZIONE", "DEST."}, {"PROFONDITA'", "PROFON."},
+    {"INTERVALLO", "INTERV."}, {"DIFFUSIONE", "DIFFUS."}, {"INIZIO 1", "INIZIO1"}, {"INIZIO 2", "INIZIO2"},
+    {"INIZIO 3", "INIZIO3"}, {"INIZIO 4", "INIZIO4"}, {"VARIAZIONE", "VARIAZ."}, {"RIP. A CASO", "A CASO"},
+    {"VOLUME 1", "VOL. 1"}, {"VOLUME 2", "VOL. 2"}, {"VOLUME 3", "VOL. 3"}, {"VOLUME 4", "VOL. 4"},
+    {"DISPOSIZIONE", "DISPOS."}, {"INTERVALLI", "INTERV."}, {"GLISSANDO", "GLISS."}, {"SFOCATURA", "SFOCAT."},
+    {"ARMONICI", "ARMON."}, {"DECADIMENTO", "DECAD."}, {"DISPERSIONE", "DISPER."}, {"FORMANTE", "FORMAN."},
+    {"LARGHEZZA", "LARGH."}, {"LUNGHEZZA", "LUNGH."}, {"RIPETIZIONI", "RIPET."}, {"PROBABILITA'", "PROBAB."},
+    {"DENSITA'", "DENSITA"}, {"CANCELLA", "CANC."}, {"BLUETOOTH", "BT"}, {"DISPOSITIVO", "DISPOS."}};
+static uint32_t kn_eq(const char *a, const char *b) { while (*a && *a == *b) { a++; b++; } return *a == *b; }
+static void short_name(char *o, const char *n)
+{
+    uint32_t i, k;
+    for (i = 0; i < sizeof SHORT / sizeof SHORT[0]; i++) if (kn_eq(SHORT[i][0], n)) { n = SHORT[i][1]; break; }
+    for (k = 0; k < 7u && n[k]; k++) o[k] = n[k];
+    o[k] = 0;
+}
+static uint32_t turn_k = 4, t_turn;          /* the knob being turned: its cell lit, its value big over the sound */
+/* a cell: the short name, the arc, the value. frac 0..2700 (< 0: no arc) */
+static void knob_cell(uint32_t c, const char *name, const char *val, int32_t frac, int32_t lfo, uint32_t steps, int idle, uint16_t vcol)
+{
+    char nm[8], v[24];
+    uint32_t i, j;
+    int active = c == turn_k;
+    uint16_t acc = mot_acc();
+    cv_begin(60, 78, C_BLACK);
+    if (c) cv_rect(0, 22, 1, 30, RGB(22, 22, 26));   /* a faint line between two knobs */
+    short_name(nm, name);
+    cv_text(30 - text_w(&FONT_S, nm) / 2, 2, &FONT_S, nm, active ? C_WHITE : C_LAB);
+    if (frac >= 0) knob_arc(frac, lfo, steps, idle, active, acc);
+    for (i = j = 0; val[i] && j < 23u; i++) v[j++] = val[i];
+    v[j] = 0;
+    if (text_w(&FONT_S, v) > 60) {           /* too long: without its spaces, then cut */
+        for (i = j = 0; v[i]; i++) if (v[i] != ' ') v[j++] = v[i];
+        v[j] = 0;
+        fit_text(v, 60);
+    }
+    cv_text(30 - text_w(&FONT_S, v) / 2, 60, &FONT_S, v, vcol);
+    cv_blit(c * 60u, CELL_Y);
+}
 static uint32_t page, dirty_hdr = 1, dirty_tabs = 1, dirty_cells = 0xF;
 static uint32_t learn_on, learn_have, learn_st, learn_num, t_learn, t_lmsg, del_all;   /* MIDI LEARN (1.2) */
 static int32_t learn_par = -1;
@@ -2757,17 +2885,6 @@ static uint8_t bt_link_mark;                /* GRANA + Bluetooth: 1 on, 2 linked
 #if GRANA_BT
 static void bt_strip(char *t);
 #endif
-static void fit_text(char *s, int32_t w)   /* 1.5: cut a text to w pixels (a dot where it was cut) */
-{
-    uint32_t n = 0;
-    while (s[n]) n++;
-    if (text_w(&FONT_S, s) <= w) return;
-    while (n > 1u) {
-        s[--n] = 0;
-        s[n - 1u] = '.';
-        if (text_w(&FONT_S, s) <= w) return;
-    }
-}
 /* 1.8: the battery. The stock firmware's levels on ADC ch3 (531 / 561 / 591, as Felucca read them from it): 4 bars at 591,
  * 3 at 561, 2 (yellow) at 531, under it 1 red, blinking. USB power (a host): a green bolt instead */
 static uint32_t batt_level(void)
@@ -2780,7 +2897,7 @@ static uint32_t batt_shown(void) { uint32_t l = batt_level(); return l == 1u && 
 static int32_t batt_draw(void)               /* on the header's canvas, right-aligned; returns its left edge */
 {
     uint32_t l = batt_shown(), k;
-    int32_t x = 210, y = 6;
+    int32_t x = 210, y = 4;
     uint16_t c = l >= 5u ? RGB(80, 220, 110) : l >= 3u ? RGB(80, 210, 100) : l == 2u ? RGB(240, 200, 60) : RGB(255, 70, 60);
     uint16_t o = l >= 5u ? c : RGB(150, 146, 140);
     cv_rect(x, y, 24, 1, o); cv_rect(x, y + 11, 24, 1, o); cv_rect(x, y, 1, 12, o); cv_rect(x + 23, y, 1, 12, o);
@@ -2793,62 +2910,61 @@ static int32_t batt_draw(void)               /* on the header's canvas, right-al
     return x;
 }
 static uint32_t batt_seen, hold_seen;                   /* what the header shows now: redrawn when it changes */
-static void draw_header(void)
+static void draw_header(void)               /* 1.9: the preset's name; its number, HOLD and the battery on the right */
 {
-    char s[24], nm[16], *e;
-    int32_t x, lx, rx, k;
-    cv_begin(240, 24, C_BAND);               /* 1.7: a band, a warm rule under it */
-    cv_rect(0, 23, 240, 1, C_RULE);
-    {   /* 1.5: the preset in use where "GRANA" was, then the scan's direction and the Bluetooth mark */
-        static const char *const DI[4] = {">", "<", "<>", "?"};
-        const char *pn = preset_name(cur_preset);
-        for (k = 0; k < 12 && pn[k]; k++) nm[k] = pn[k];
-        nm[k] = 0;
-        fit_text(nm, 84);
-        lx = cv_text(6, 4, &FONT_S, nm, C_ACC);
-        lx = cv_text(lx + 6, 4, &FONT_S, DI[par[P_DIR] & 3u], C_LAB);   /* the scan's direction */
-        if (bt_link_mark) lx = cv_text(lx + 4, 4, &FONT_S, "BT", bt_link_mark == 2u ? RGB(110, 200, 255) : C_TAB);
-    }
-    rx = batt_draw() - 6;                    /* 1.8: the battery on the right, as the stock firmware has it */
+    char nm[16], t[8], *e;
+    int32_t lx, rx, k, pend = pend_preset >= 0;
+    uint32_t pn = pend ? (uint32_t)pend_preset : cur_preset;
+    uint16_t acc = mot_acc();
+    cv_begin(240, 20, C_BLACK);
+    cv_rect(0, 19, 240, 1, C_HAIR);
+    rx = batt_draw() - 8;
     if (hold) {                              /* 1.8.2: HOLD on, beside it */
         int32_t hw = text_w(&FONT_S, "HOLD");
-        rx -= hw + 10;
-        cv_card(rx, 3, hw + 8, 18, RGB(60, 40, 14), C_ACC, C_BAND);
-        cv_text(rx + 4, 4, &FONT_S, "HOLD", C_ACC);
-        rx -= 4;
+        rx -= hw + 8;
+        cv_card(rx, 1, hw + 8, 18, C_BLACK, acc, C_BLACK);
+        cv_text(rx + 4, 2, &FONT_S, "HOLD", acc);
+        rx -= 6;
     }
-    {   /* 1.8, the middle: the preset's number in its tag and the engine (the sound is on HOME's STRATI) */
-        char t[24];
-        int32_t w, tw;
-        e = t; *e++ = 'P'; fmt_u(e, (pend_preset >= 0 ? (uint32_t)pend_preset : cur_preset) + 1u); while (*e) e++;
-        if (edited && pend_preset < 0) *e++ = '*';
-        *e = 0;
-        e = s;
-        if (pend_preset >= 0) cat(e, preset_name((uint32_t)pend_preset));   /* the preset the knob points at */
-        else cat(e, MOT_NAME[par[P_MOTORE] & 3u]);
-        lx += 10;
-        tw = text_w(&FONT_S, t);
-        fit_text(s, rx - lx - tw - 18);
-        w = tw + 10 + 6 + text_w(&FONT_S, s);
-        x = 128 - w / 2;
-        if (x < lx) x = lx;
-        if (x + w > rx) x = rx - w;
-        cv_card(x, 3, tw + 10, 18, pend_preset >= 0 ? RGB(60, 40, 14) : RGB(30, 28, 26),
-                pend_preset >= 0 ? C_ACC : RGB(58, 54, 50), C_BAND);
-        cv_text(x + 5, 4, &FONT_S, t, pend_preset >= 0 ? C_ACC : edited ? C_ACC2 : C_LAB);
-        cv_text(x + tw + 16, 4, &FONT_S, s, pend_preset >= 0 ? C_ACC : par[P_MOTORE] ? C_WHITE : C_LAB);
+    e = t; *e++ = 'P'; fmt_u(e, pn + 1u); while (*e) e++;
+    if (edited && !pend) *e++ = '*';
+    *e = 0;
+    rx -= text_w(&FONT_S, t);
+    if (pend) cv_card(rx - 3, 1, text_w(&FONT_S, t) + 6, 18, RGB(60, 40, 14), C_ACC, C_BLACK);   /* the preset PRESETS points at */
+    cv_text(rx, 2, &FONT_S, t, pend ? C_ACC2 : acc);
+    {
+        const char *n = preset_name(pn);
+        for (k = 0; k < 12 && n[k]; k++) nm[k] = n[k];
+        nm[k] = 0;
     }
+    lx = 6;
+    if (bt_link_mark) {                      /* GRANA + Bluetooth: its mark, last before the number */
+        rx -= text_w(&FONT_S, "BT") + 8;
+        cv_text(rx, 2, &FONT_S, "BT", bt_link_mark == 2u ? RGB(110, 200, 255) : C_TAB);
+    }
+    fit_text(nm, rx - lx - 8);
+    cv_text(lx, 2, &FONT_S, nm, pend ? C_ACC : C_WHITE);
     cv_blit(0, 0);
 }
 
 static uint32_t rec, cursor;                /* REC: the sequencer's step entry, at step `cursor` */
 static uint32_t seq_clear_t;                /* 1.4: SEQ held in REC, ms: the sequence is emptied at 1000 */
 static uint32_t save_mode, save_dest, t_savemode, t_savehold;   /* SAVE asked: where to (see save_to) */
+static const char *page_btn(uint32_t g)       /* the button a page is under */
+{
+    if (g == PG_MOTO || g == PG_MOTO2) return "SEL";
+    if (g == PG_STR || g == PG_SPLIT || g == PG_LIV || (g >= PG_LPIT && g <= PG_LAREA)) return "HOME";
+    if (g == PG_GRANI || g == PG_MOT) return "EDIT";
+    if (g == PG_FORMA || g == PG_TAST) return "ENV";
+    if (g == PG_MIX || g == PG_VOL || g == PG_LPAN) return "GLO";
+    if (g == PG_FILT || g == PG_MOD || g == PG_DLY || g == PG_NAS2 || g == PG_RIV || g == PG_RIV2) return "FX";
+    if (g == PG_SPEC || g == PG_LFO1 || g == PG_LFO2) return "LFO";
+    return 0;
+}
 static void draw_tabs(void)                 /* the page's name, then a mark a page: where it is among them */
 {
-    uint32_t i;
     int32_t x;
-    cv_begin(240, 20, C_BLACK);
+    cv_begin(240, 18, C_BLACK);
     if (save_mode) {                        /* where to: an empty place takes a press, a taken one SAVE held 1 s */
         char q[32], *e = q;
         uint32_t taken = pr[save_dest].used;
@@ -2857,18 +2973,18 @@ static void draw_tabs(void)                 /* the page's name, then a mark a pa
         x = cv_text(6, 1, &FONT_S, q, taken ? RGB(255, 80, 70) : C_ACC);
         if (!taken) cv_text(234 - text_w(&FONT_S, "SAVE: SALVA"), 1, &FONT_S, "SAVE: SALVA", C_LAB);
         else cv_text(234 - text_w(&FONT_S, "TIENI SAVE"), 1, &FONT_S, "TIENI SAVE", C_WHITE);
-        cv_rect(0, 18, 240, 2, C_AREA);
+        cv_rect(0, 16, 240, 2, C_AREA);
         if (taken && t_savehold) {
             int32_t el = (int32_t)(fm1_ms - t_savehold); uint32_t w = el > 0 ? (uint32_t)el * 240u / 1000u : 0u;
-            cv_rect(0, 17, (int32_t)(w > 240u ? 240u : w), 3, RGB(255, 80, 70));
-        } else cv_rect(0, 19, 240, 1, taken ? RGB(255, 80, 70) : C_ACC);
-        cv_blit(0, 118);
+            cv_rect(0, 15, (int32_t)(w > 240u ? 240u : w), 3, RGB(255, 80, 70));
+        } else cv_rect(0, 17, 240, 1, taken ? RGB(255, 80, 70) : C_ACC);
+        cv_blit(0, TAB_Y);
         return;
     }
     if (lmsg[0]) {                          /* MIDI LEARN: waiting, or what it just did */
         cv_text(6, 1, &FONT_S, lmsg, learn_on ? C_ACC : C_WHITE);
-        cv_rect(0, 19, 240, 1, learn_on ? C_ACC : C_AREA);
-        cv_blit(0, 118);
+        cv_rect(0, 17, 240, 1, learn_on ? C_ACC : C_AREA);
+        cv_blit(0, TAB_Y);
         return;
     }
     x = cv_text(6, 1, &FONT_S, PAGE[page], C_WHITE);
@@ -2886,9 +3002,9 @@ static void draw_tabs(void)                 /* the page's name, then a mark a pa
         } else { e = cat(e, clk.run ? "PLAY" : "STOP"); if (clk.run) col = C_ACC; }
         if (page == PG_ARP && hold) cv_text(6, 1, &FONT_S, "ARP", C_WHITE);   /* the long line needs the room */
         cv_text(234 - text_w(&FONT_S, t), 1, &FONT_S, t, col);
-        if (seq_clear_t) cv_rect(0, 17, (int32_t)(seq_clear_t > 1000u ? 240u : seq_clear_t * 240u / 1000u), 3, RGB(255, 80, 70));
-        else cv_rect(0, 19, 240, 1, C_AREA);
-        cv_blit(0, 118);
+        if (seq_clear_t) cv_rect(0, 15, (int32_t)(seq_clear_t > 1000u ? 240u : seq_clear_t * 240u / 1000u), 3, RGB(255, 80, 70));
+        else cv_rect(0, 17, 240, 1, C_AREA);
+        cv_blit(0, TAB_Y);
         return;
     }
 #if GRANA_BT
@@ -2897,8 +3013,8 @@ static void draw_tabs(void)                 /* the page's name, then a mark a pa
         t[0] = 0;
         bt_strip(t);
         cv_text(234 - text_w(&FONT_S, t), 1, &FONT_S, t, bt_link_mark == 2u ? C_ACC : C_LAB);
-        cv_rect(0, 19, 240, 1, C_AREA);
-        cv_blit(0, 118);
+        cv_rect(0, 17, 240, 1, C_AREA);
+        cv_blit(0, TAB_Y);
         return;
     }
 #endif
@@ -2917,22 +3033,17 @@ static void draw_tabs(void)                 /* the page's name, then a mark a pa
             if (text_w(&FONT_S, t) <= room) break;
         }
         cv_text(234 - text_w(&FONT_S, t), 1, &FONT_S, t, C_LAB);
-        cv_rect(0, 19, 240, 1, C_AREA);
-        cv_blit(0, 118);
+        cv_rect(0, 17, 240, 1, C_AREA);
+        cv_blit(0, TAB_Y);
         return;
     }
-    {   /* the pages SELECT goes through, in its order, grouped by their buttons (1.7): HOME, FX, SEL, ENV, LFO, EDIT, GLO */
-        static const uint8_t GRP[7] = {6, 6, 2, 2, 3, 1, 3};
-        int32_t g, j, mx = 240 - 6 - ((int32_t)sizeof PG_ORDER * 4 + 6 * 4) + 1;
-        for (g = 0, i = 0; g < 7; g++, mx += 4)
-            for (j = 0; j < GRP[g]; j++, i++, mx += 4) {
-                int on = PG_ORDER[i] == page;
-                if (on) { cv_rect(mx - 1, 6, 4, 7, C_ACC); cv_rect(mx, 7, 2, 5, C_ACC2); }
-                else cv_rect(mx, 8, 2, 3, RGB(84, 84, 96));
-            }
+    {   /* 1.9: the button that opens it, dim; on the right the engine, in its colour */
+        const char *bn = page_btn(page);
+        if (bn) cv_text(x + 8, 1, &FONT_S, bn, C_TAB);
+        cv_text(234 - text_w(&FONT_S, MOT_NAME[par[P_MOTORE] & 3u]), 1, &FONT_S, MOT_NAME[par[P_MOTORE] & 3u], mot_acc());
     }
-    cv_rect(0, 19, 240, 1, C_EDGE);
-    cv_blit(0, 118);
+    cv_rect(0, 17, 240, 1, C_HAIR);
+    cv_blit(0, TAB_Y);
 }
 
 static uint8_t cell_drawn[4];
@@ -2940,35 +3051,23 @@ static void draw_cell(uint32_t c)
 {
     uint32_t p = pp(page, c), bar;
     char s[16];
-    const felucca_font_t *f = &FONT_L;
-    (void)f;
-    if (!PMAX[p]) {                          /* a free place: an empty panel, dimmer */
-        cv_begin(118, 50, C_BLACK); cv_card(0, 0, 118, 50, C_BLACK, RGB(22, 23, 28), C_BLACK);
-        cv_blit(c & 1u ? 121 : 1, c < 2u ? 140 : 190); return;
+    if (!PMAX[p]) {                          /* a free place: nothing */
+        cv_begin(60, 78, C_BLACK); cv_blit(c * 60u, CELL_Y); return;
     }
-    cell_begin();                            /* 1.7: on a panel, the bar in a track with a bright tip */
-    cv_text(6, 2, &FONT_S, pname_of(p), C_LAB);
     value_text(p, s);
-    {   /* 1.7: a knob that does nothing now ("-"): dim, no bar */
+    {   /* a knob that does nothing now ("-"): only its track */
         int idle = (s[0] == '-' && !s[1]) || (s[0] == '(');
-        cell_value(s, idle ? C_TAB : C_WHITE);
-        bar = idle ? 0u : (p == P_FMODE ? fm_pos(par[p]) : par[p]) * 106u / PMAX[p];
-    }
-    cv_rect(6, 44, 106, 3, C_TRACK);
-    if (bar) { cv_rect(6, 44, (int32_t)bar, 3, C_ACC); cv_rect(6 + (int32_t)bar - (bar > 1u ? 2 : 1), 44, bar > 1u ? 2 : 1, 3, C_ACC2); }
-    if (epar[p] != par[p]) {                /* an LFO on it: where it is now */
-        uint32_t mx = epar[p] * 106u / PMAX[p];
-        int32_t xm = 6 + (int32_t)(mx > 104u ? 104u : mx);
-        cv_rect(xm, 40, 2, 8, C_WHITE);
-        cv_pset(xm - 1, 40, C_WHITE); cv_pset(xm + 2, 40, C_WHITE);
+        uint32_t mx = (uint32_t)PMAX[p], at = p == P_FMODE ? fm_pos(par[p]) : par[p];
+        bar = at * 2700u / mx;
+        knob_cell(c, pname_of(p), s, (int32_t)bar, epar[p] != par[p] ? (int32_t)((uint32_t)epar[p] * 2700u / mx) : -1,
+                  mx <= 6u ? mx + 1u : 0u, idle, idle ? C_TAB : C_WHITE);
     }
     cell_drawn[c] = epar[p];
-    cv_blit(c & 1u ? 121 : 1, c < 2u ? 140 : 190);
 }
 
 /* the sound: one lane, or (1.2) a lane a layer that sounds, each its own outline, area, spray, scans and grains in its colour */
 #define RGBD(r, g, b, n) RGB((r) * (n) / 100, (g) * (n) / 100, (b) * (n) / 100)
-#define LANE_COLS(r, g, b) {RGB(r, g, b), RGBD(r, g, b, 62), RGBD(r, g, b, 22), RGBD(r, g, b, 34), RGBD(r, g, b, 14), RGBD(r, g, b, 7)}
+#define LANE_COLS(r, g, b) {RGB(r, g, b), RGBD(r, g, b, 68), RGBD(r, g, b, 22), RGBD(r, g, b, 36), RGBD(r, g, b, 15), RGBD(r, g, b, 7)}
 static void draw_lane(uint32_t L, int32_t y0, int32_t lh, uint32_t one)
 {
     static const uint16_t LC[NL][6] = {LANE_COLS(255, 176, 64), LANE_COLS(110, 200, 255), LANE_COLS(140, 230, 110),
@@ -2976,8 +3075,8 @@ static void draw_lane(uint32_t L, int32_t y0, int32_t lh, uint32_t one)
     const layer_t *ly = &lay[L];
     const uint8_t *pk = peaks[L];
     uint32_t len = ly->full, x, k;
-    uint16_t cw = one ? C_WAV : LC[L][1], cd = one ? C_WAVD : LC[L][2], ch = one ? C_WAVH : LC[L][3];
-    uint16_t ca = one ? C_AREA : LC[L][4], cs = one ? C_HALO : LC[L][5];
+    uint16_t cw = LC[L][1], cd = LC[L][2], ch = LC[L][3], ca = LC[L][4], cs = LC[L][5];   /* 1.9: in the layer's colour */
+    uint16_t cg = L ? LC[L][0] : mot_acc();  /* the first layer's grains in the engine's colour */
     int32_t mid = y0 + lh / 2, a0, a1, h0, h1;
     if (len < 64u || !ly->len) return;
     a0 = (int32_t)((uint32_t)ly->pos0 * 240u / len);
@@ -3012,8 +3111,8 @@ static void draw_lane(uint32_t L, int32_t y0, int32_t lh, uint32_t one)
             if (f < 0) f += (int32_t)ly->len;
             x = (uint32_t)(f + ly->wstart) * 240u / len;
         }
-        cv_rect((int32_t)x, y0, 1, lh, k == NV ? C_TAB : C_ACC2);
-        if (k < NV) { cv_rect((int32_t)x - 1, y0, 3, 1, C_ACC2); cv_rect((int32_t)x - 1, y0 + lh - 1, 3, 1, C_ACC2); }   /* 1.7: capped */
+        cv_rect((int32_t)x, y0, 1, lh, k == NV ? C_TAB : RGB(225, 222, 215));
+        if (k < NV) { cv_rect((int32_t)x - 1, y0, 3, 2, C_WHITE); cv_rect((int32_t)x - 1, y0 + lh - 2, 3, 2, C_WHITE); }   /* capped */
     }
     if (a1 - a0 < 240) {                     /* 1.7: the area's two edges, a thin brighter line */
         int32_t e0 = ((a0 % 240) + 240) % 240, e1 = ((a1 % 240) + 240) % 240;
@@ -3023,20 +3122,31 @@ static void draw_lane(uint32_t L, int32_t y0, int32_t lh, uint32_t one)
         int32_t w0 = (int32_t)((uint32_t)ly->wstart * 240u / len), w1 = (int32_t)(((uint32_t)ly->wstart + ly->len) * 240u / len);
         cv_rect(w0, y0, w1 - w0, 2, C_LAB);
     }
-    for (k = 0; k < NV * NG; k++) {          /* its grains, as tall as they are loud */
-        int32_t p = vis_pos[k], h;
+    for (k = 0; k < NV * NG; k++) {          /* 1.9: its grains, dots scattered up and down, brighter as they are louder */
+        int32_t p = vis_pos[k], yy, sp = lh / 2 - 4;
+        uint32_t a;
         if (p < 0 || vis_lay[k] % NL != L || (uint32_t)p >= len) continue;
         x = (uint32_t)p * 240u / len;
-        h = (int32_t)(vis_amp[k] * (uint32_t)(lh / 2 - (one ? 4 : 2)) / 255u) + (one ? 3 : 2);
-        cv_rect((int32_t)x - 1, mid - h, 3, 2 * h, LC[L][0]);
+        yy = mid + (int32_t)((k * 37u + (uint32_t)p / 97u) % 33u) * sp / 16 - sp;
+        a = 7u + vis_amp[k] * 8u / 255u;
+        {   /* a round dot, lighter than its colour, in a dark ring: it reads over the sound's own colour */
+            int32_t dx, dy;
+            uint16_t lt = mix565(cg, C_WHITE, 6u);
+            for (dy = -3; dy <= 3; dy++) for (dx = -3; dx <= 3; dx++) {
+                int32_t r = dx * dx + dy * dy;
+                if (r <= 2) cv_blend((int32_t)x + dx, yy + dy, lt, a);
+                else if (r <= 5) cv_blend((int32_t)x + dx, yy + dy, lt, a / 2u);
+                else if (r <= 10) cv_blend((int32_t)x + dx, yy + dy, C_BLACK, 7u);
+            }
+        }
     }
+    (void)one;
 }
-static void draw_wave(void)
+static void wave_body(void)
 {
     uint32_t L, n = 0, k;
     uint8_t ln[NL];
     int32_t seq = page == PG_SEQ || rec, ah, lh;
-    cv_begin(240, WAV_H, C_BLACK);
     for (L = 0; L < NL; L++) if (lay[L].snd != NOSND && lay[L].full >= 64u) ln[n++] = (uint8_t)L;
     ah = seq && n > 1u ? WAV_H - 12 : WAV_H;  /* the sequence below the lanes */
     for (k = 0; k < n; k++) {
@@ -3064,7 +3174,36 @@ static void draw_wave(void)
         }
         for (s = 1; s < 4; s++) cv_rect(s * 60 - 1, WAV_H - 12, 1, 12, C_LAB);
     }
-    cv_blit(0, WAV_Y);
+    if (turn_k < 4u && fm1_ms - t_turn < 1200u) {   /* 1.9: a knob being turned: its name and value, big, over the sound */
+        uint32_t p = pp(page, turn_k);
+        if (p < NP && PMAX[p]) {
+            char v[24];
+            const felucca_font_t *f = &FONT_L;
+            uint16_t acc = mot_acc();
+            int32_t bx = 28, by = (WAV_H - 66) / 2, bw = 184, w;
+            value_text(p, v);
+            if ((v[0] == '-' && !v[1]) || v[0] == '(') goto no_box;   /* a knob that does nothing now */
+            if (text_w(f, v) > bw - 8) f = &FONT_S;
+            cv_card(bx, by, bw, 66, RGB(12, 11, 10), acc, C_BLACK);
+            cv_card(bx + 1, by + 1, bw - 2, 64, RGB(12, 11, 10), acc, acc);
+            w = text_w(&FONT_S, pname_of(p));
+            cv_text(120 - w / 2, by + 6, &FONT_S, pname_of(p), C_LAB);
+            w = text_w(f, v);
+            cv_text(120 - w / 2, f == &FONT_L ? by + 26 : by + 36, f, v, acc);
+        }
+    }
+no_box:;
+}
+static void draw_wave(void)                  /* 1.9: 120 rows, the canvas holds 88: drawn as two halves */
+{
+    uint32_t h;
+    for (h = 0; h < 2u; h++) {
+        cv_begin(240, WAV_H / 2, C_BLACK);
+        cv_oy = -(int32_t)(h * WAV_H / 2);
+        wave_body();
+        cv_oy = 0;
+        cv_blit(0, WAV_Y + h * WAV_H / 2);
+    }
 }
 
 /* ---- the opening: Mario Texture's GRANA, a wheel of grana cheese with a wedge cut out. It appears whole and solid
@@ -3469,14 +3608,14 @@ static void intro_finish(void)
 }
 
 static uint32_t t_flash;                    /* SELECT turned: the page's name, big, for a moment */
-static void goto_page(uint32_t p) { page = p; dirty_tabs = 1; dirty_cells = 0xF; t_flash = 0; }
+static void goto_page(uint32_t p) { page = p; dirty_tabs = 1; dirty_cells = 0xF; t_flash = 0; turn_k = 4; }
 static void draw_flash(void)
 {
     uint32_t i, n = sizeof PG_ORDER;
     int32_t at = 0, w;
     for (i = 0; i < n; i++) if (PG_ORDER[i] == page) at = (int32_t)i;
-    lcd_fill(0, 140, 240, 6, C_BLACK);
     cv_begin(240, 88, C_BLACK);
+    cv_oy = 4;
     if (page == PG_MOT) {                   /* 1.8, ALGORITHM: the engine, big, and its neighbours */
         uint32_t m = par[P_MOTORE] & 3u;
         w = text_w(&FONT_L, MOT_NAME[m]);
@@ -3494,8 +3633,9 @@ static void draw_flash(void)
     w = text_w(&FONT_S, PAGE[PG_ORDER[(at + 1) % (int32_t)n]]);
     cv_text(234 - w, 66, &FONT_S, PAGE[PG_ORDER[(at + 1) % (int32_t)n]], C_LAB);
     }
-    cv_blit(0, 146);
-    lcd_fill(0, 234, 240, 6, C_BLACK);
+    cv_oy = 0;
+    cv_blit(0, TAB_Y);
+    lcd_fill(0, TAB_Y + 88, 240, 240 - TAB_Y - 88, C_BLACK);
 }
 
 static void step_write(uint32_t note)       /* REC: the step under the cursor, then the next */
@@ -3603,9 +3743,7 @@ static void draw_name(void)                 /* the name editor, where the knobs 
     uint32_t i, n = name_len();
     int32_t x0, cw, w;
     char one[2] = {0, 0};
-    lcd_fill(0, 140, 240, 6, C_BLACK);
-    cv_begin(240, 88, C_BLACK);
-    cv_text(6, 0, &FONT_S, "NOME", C_LAB);
+    cv_begin(240, 78, C_BLACK);             /* 1.9: where the knobs are; the line above says where it goes */
     if (text_w(f, "MMMMMMMMMMMM") > 236) f = &FONT_S;
     cw = text_w(f, "M");
     w = cw * (int32_t)(n > name_cur ? n : name_cur + 1u);
@@ -3613,12 +3751,11 @@ static void draw_name(void)                 /* the name editor, where the knobs 
     if (x0 < 2) x0 = 2;
     for (i = 0; i < 12u; i++) {             /* a fixed width a letter, the cursor under its own */
         one[0] = i < n ? save_name[i] : ' ';
-        if (i < n) cv_text(x0 + (int32_t)i * cw, 20, f, one, C_WHITE);
-        if (i == name_cur) cv_rect(x0 + (int32_t)i * cw, 20 + (f == &FONT_L ? 34 : 18), cw - 2, 3, C_ACC);
+        if (i < n) cv_text(x0 + (int32_t)i * cw, 4, f, one, C_WHITE);
+        if (i == name_cur) cv_rect(x0 + (int32_t)i * cw, 4 + (f == &FONT_L ? 34 : 18), cw - 2, 3, C_ACC);
     }
-    for (i = 0; i < 4u; i++) cv_text(6 + (int32_t)i * 59, 70, &FONT_S, HINT[i], C_TAB);
-    cv_blit(0, 146);
-    lcd_fill(0, 234, 240, 6, C_BLACK);
+    for (i = 0; i < 4u; i++) cv_text((int32_t)i * 60 + 30 - text_w(&FONT_S, HINT[i]) / 2, 58, &FONT_S, HINT[i], C_TAB);
+    cv_blit(0, CELL_Y);
 }
 static void save_to(uint32_t dst)
 {
@@ -3825,14 +3962,8 @@ static void midi_delete(void)               /* OCT+ on the MIDI page: CANCELLA *
 static void draw_midi_cell(uint32_t c)
 {
     char s[24];
-    const felucca_font_t *f = &FONT_L;
-    (void)f;
-    cell_begin();
-    cv_text(6, 2, &FONT_S, MIDI_PN[c], C_LAB);
     midi_value(c, s);
-    cell_value(s, c == 2u && learn_on ? C_ACC : C_WHITE);
-    if (c == 3u) cv_text(112 - text_w(&FONT_S, "OCT+"), 2, &FONT_S, "OCT+", C_TAB);   /* the button that confirms it */
-    cv_blit(c & 1u ? 121 : 1, c < 2u ? 140 : 190);
+    knob_cell(c, MIDI_PN[c], s, -1, -1, 0, 0, c == 2u && learn_on ? C_ACC : C_WHITE);
 }
 
 #if GRANA_BT
@@ -3978,6 +4109,9 @@ static void app_step(void)
                 continue;
             }
             param_change(p, accel(d, PMAX[p]));
+            if (turn_k != k) { if (turn_k < 4u) dirty_cells |= 1u << turn_k; turn_k = k; }   /* 1.9: lit, its value big */
+            t_turn = fm1_ms;
+            dirty_cells |= 1u << k;
             if (p == P_SLEN && cursor > par[P_SLEN]) cursor = 0;
             if (p >= P_SP1 && p <= P_SP3 && par[P_DISP]) {   /* a split turned: for 5 s a key can set it instead */
                 split_arm = p; t_split = fm1_ms;
@@ -4100,7 +4234,12 @@ static void app_step(void)
 
     /* the screen: what changed, the outline 25 times a second */
     if (lfo_tick()) engine_update();        /* the LFOs move their destinations */
-    if (t_flash && fm1_ms - t_flash > 700u) { t_flash = 0; dirty_cells = 0xF; }   /* the page's name, then its knobs */
+    if (t_flash && fm1_ms - t_flash > 700u) { t_flash = 0; dirty_cells = 0xF; dirty_tabs = 1; }
+    if (turn_k < 4u && fm1_ms - t_turn >= 1200u) { dirty_cells |= 1u << turn_k; turn_k = 4; }   /* 1.9: the knob let go */
+    {   /* 1.9: the engine's colour is everywhere: an engine changed (ALGORITHM, a CC, a preset), all of it again */
+        static uint32_t mot_seen = 9;
+        if ((par[P_MOTORE] & 3u) != mot_seen) { mot_seen = par[P_MOTORE] & 3u; dirty_hdr = dirty_tabs = 1; dirty_cells = 0xF; }
+    }   /* the page's name, then its knobs */
     mot_sync();                             /* 1.8.2: the engine changed from SPECIALI, a CC or LEARN too */
     if (batt_shown() != batt_seen || hold != hold_seen) { batt_seen = batt_shown(); hold_seen = hold; dirty_hdr = 1; }   /* 1.8: the battery's level, its blink */
     if (dirty_hdr) { dirty_hdr = 0; draw_header(); }
@@ -4108,7 +4247,7 @@ static void app_step(void)
     {   /* while SAVE asks: the name where the knobs were; after, the knobs again */
         static uint32_t was_saving;
         if (save_mode && (name_dirty || !was_saving)) { name_dirty = 0; t_flash = 0; draw_name(); }
-        if (!save_mode && was_saving) dirty_cells = 0xF;
+        if (!save_mode && was_saving) { dirty_cells = 0xF; dirty_tabs = 1; }
         was_saving = save_mode;
     }
     if (!t_flash && !save_mode)

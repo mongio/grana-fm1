@@ -418,17 +418,12 @@ static void bt_confirm(void)                    /* OCT+ on the BLUETOOTH page: D
 static void draw_bt_cell(uint32_t c)
 {
     char s[40];
-    const felucca_font_t *f = &FONT_L;
     s[0] = 0;
-    (void)f;
-    cell_begin();
-    cv_text(6, 2, &FONT_S, BT_PN[c], C_LAB);
     if (c == 0u) cat(s, bt_on ? "ACCESO" : "SPENTO");
     else if (c == 1u) bt_row_text(bt_sel, s);
     else if (c == 2u) cat(s, BT_MODEN[store.bt_mode % 3u]);
     else cat(s, store.bt_auto ? "SI" : "NO");
-    cell_value(s, c == 0u && bt_on ? C_ACC : C_WHITE);
-    cv_blit(c & 1u ? 121 : 1, c < 2u ? 140 : 190);
+    knob_cell(c, BT_PN[c], s, -1, -1, 0, 0, c == 0u && bt_on ? C_ACC : C_WHITE);
 }
 static const char *bt_why(void)
 {
