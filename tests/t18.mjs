@@ -60,6 +60,24 @@ press('EDIT'); check('EDIT: GRANI', page() === PG_GRANI, 'page ' + page());
 press('EDIT'); check('EDIT di nuovo: MOTORE', page() === PG_MOT, 'page ' + page());
 press('EDIT'); check('EDIT ancora: GRANI', page() === PG_GRANI);
 
+// 1.8.2: each engine keeps its knobs while working; the preset's own engine finds the preset's again
+{
+  e.midi(0xC0, 0, 0); run(300);
+  e.midi(0xB0, 111, 30); run(50); const r = par(P_M1);
+  e.enc(ENC.ALGORITHM, 1); run(100);
+  check('memoria: STIRAMENTO parte dai suoi valori', par(P_MOTORE) === 1 && par(P_M1) === 20);
+  e.midi(0xB0, 112, 100); run(50); const sf = par(P_M1 + 1);
+  e.enc(ENC.ALGORITHM, -1); run(100);
+  check('memoria: tornando al CLASSICO RITMO è quello di prima', par(P_MOTORE) === 0 && par(P_M1) === r && r > 0, 'ritmo ' + par(P_M1));
+  e.enc(ENC.ALGORITHM, 1); run(100);
+  check('memoria: STIRAMENTO ritrova la sua SFOCATURA', par(P_M1 + 1) === sf, 'sfoc ' + par(P_M1 + 1));
+  e.midi(0xB0, 110, 0); run(100);
+  check('memoria: anche cambiando motore con il CC 110', par(P_MOTORE) === 0 && par(P_M1) === r);
+  e.midi(0xC0, 12, 0); run(300); const c1 = par(P_M1);
+  e.enc(ENC.ALGORITHM, -3); run(100); e.enc(ENC.ALGORITHM, 3); run(100);
+  check('memoria: CORDE ritrova i valori del preset', par(P_MOTORE) === 3 && par(P_M1) === c1);
+  e.midi(0xC0, 0, 0); run(300);
+}
 // CC 110..114: MOTORE and its four
 e.midi(0xB0, 110, 127); run(50); check('CC 110 = 127: RISONATORE', par(P_MOTORE) === 3);
 e.midi(0xB0, 111, 0); run(50); check('CC 111 = 0: DECADIMENTO 0', par(P_M1) === 0);

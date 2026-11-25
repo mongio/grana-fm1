@@ -2433,6 +2433,19 @@ static void seq_recall(uint32_t i)
     uint32_t k;
     for (k = 0; k < NSTEP; k++) { seq_pos[k] = pr[i].sp[k]; seq_note[k] = pr[i].sn[k]; }
 }
+/* 1.8.2: each engine keeps its own four while you work: leaving one, its knobs are kept; coming back, they return
+ * (its start, MOT_DEF, the first time). A preset recalled: its own engine takes the preset's, the others their start. */
+static uint8_t mot_mem[NMOT][4], mot_set, mot_cur = 0xFFu;
+static void mot_sync(void)
+{
+    uint32_t m = par[P_MOTORE] & 3u, k;
+    if (m == mot_cur) return;
+    if (mot_cur < NMOT) { for (k = 0; k < 4u; k++) mot_mem[mot_cur][k] = par[P_M1 + k]; mot_set |= (uint8_t)(1u << mot_cur); }
+    for (k = 0; k < 4u; k++) par[P_M1 + k] = base[P_M1 + k] = mot_set >> m & 1u ? mot_mem[m][k] : MOT_DEF[m][k];
+    mot_set |= (uint8_t)(1u << m);
+    mot_cur = (uint8_t)m;
+    engine_update();
+}
 static void preset_recall(uint32_t i)
 {
     uint32_t k;
@@ -2444,6 +2457,9 @@ static void preset_recall(uint32_t i)
     for (k = P_SND2; k <= P_SND4; k++) if (par[k] > nsnd) par[k] = base[k] = 0;
     seq_recall(cur_preset);
     edited = 0;
+    mot_cur = (uint8_t)(par[P_MOTORE] & 3u);    /* 1.8.2: its engine as the preset has it */
+    for (k = 0; k < 4u; k++) mot_mem[mot_cur][k] = par[P_M1 + k];
+    mot_set = (uint8_t)(1u << mot_cur);      /* a new preset, a new work: the other engines start from their own start */
     layers_sync(0);
     engine_update();
     drone_update();
@@ -2776,7 +2792,7 @@ static int32_t batt_draw(void)               /* on the header's canvas, right-al
         for (k = 0; k < l && k < 4u; k++) cv_rect(x + 2 + 5 * (int32_t)k, y + 2, 4, 8, c);
     return x;
 }
-static uint32_t batt_seen;                   /* what the header shows now: redrawn when it changes */
+static uint32_t batt_seen, hold_seen;                   /* what the header shows now: redrawn when it changes */
 static void draw_header(void)
 {
     char s[24], nm[16], *e;
@@ -2794,6 +2810,13 @@ static void draw_header(void)
         if (bt_link_mark) lx = cv_text(lx + 4, 4, &FONT_S, "BT", bt_link_mark == 2u ? RGB(110, 200, 255) : C_TAB);
     }
     rx = batt_draw() - 6;                    /* 1.8: the battery on the right, as the stock firmware has it */
+    if (hold) {                              /* 1.8.2: HOLD on, beside it */
+        int32_t hw = text_w(&FONT_S, "HOLD");
+        rx -= hw + 10;
+        cv_card(rx, 3, hw + 8, 18, RGB(60, 40, 14), C_ACC, C_BAND);
+        cv_text(rx + 4, 4, &FONT_S, "HOLD", C_ACC);
+        rx -= 4;
+    }
     {   /* 1.8, the middle: the preset's number in its tag and the engine (the sound is on HOME's STRATI) */
         char t[24];
         int32_t w, tw;
@@ -3864,7 +3887,10 @@ static void app_step(void)
     {   /* HOME held 0.6 s: HOLD (a short press is free, for what comes next) */
         static uint32_t t_home, home_fired;
         if (b & (1u << BTN_HOME)) { t_home = fm1_ms; home_fired = 0; }
-        if ((fm1_in.buttons >> BTN_HOME & 1u) && !home_fired && fm1_ms - t_home >= 600u) { home_fired = 1; hold_toggle(keys); }
+        if ((fm1_in.buttons >> BTN_HOME & 1u) && !home_fired && fm1_ms - t_home >= 600u) {
+            home_fired = 1; hold_toggle(keys);
+            learn_say(hold ? "HOLD: LE NOTE RESTANO" : "HOLD: SPENTO", 0);   /* 1.8.2: as VIRGO says it */
+        }
         if ((rel & (1u << BTN_HOME)) && !home_fired && !save_mode)   /* short: STRATI, SPLIT, QUANTITA', PITCH, INI/AREA 1-2, 3-4 */
             goto_page(page == PG_STR ? PG_SPLIT : page == PG_SPLIT ? PG_LIV : page == PG_LIV ? PG_LPIT : page == PG_LPIT ? PG_LINI :
                       page == PG_LINI ? PG_LAREA : PG_STR);
@@ -3975,10 +4001,10 @@ static void app_step(void)
     if ((d = fm1_enc_take(ENC_ALGORITHM)) != 0) {   /* 1.8: the engine, and its page */
         if (learn_on) { learn_par = P_MOTORE; t_learn = fm1_ms; learn_try(); }
         else {
-            uint32_t was = par[P_MOTORE], k;
+            uint32_t was = par[P_MOTORE];
             param_change(P_MOTORE, d);
             if (par[P_MOTORE] != was) {
-                for (k = 0; k < 4u; k++) par[P_M1 + k] = base[P_M1 + k] = MOT_DEF[par[P_MOTORE] & 3u][k];   /* its own start */
+                mot_sync();                 /* 1.8.2: the one left keeps its knobs, the one found gets its own back */
                 goto_page(PG_MOT);
                 t_flash = fm1_ms ? fm1_ms : 1u;
                 draw_flash();
@@ -4075,7 +4101,8 @@ static void app_step(void)
     /* the screen: what changed, the outline 25 times a second */
     if (lfo_tick()) engine_update();        /* the LFOs move their destinations */
     if (t_flash && fm1_ms - t_flash > 700u) { t_flash = 0; dirty_cells = 0xF; }   /* the page's name, then its knobs */
-    if (batt_shown() != batt_seen) { batt_seen = batt_shown(); dirty_hdr = 1; }   /* 1.8: the battery's level, its blink */
+    mot_sync();                             /* 1.8.2: the engine changed from SPECIALI, a CC or LEARN too */
+    if (batt_shown() != batt_seen || hold != hold_seen) { batt_seen = batt_shown(); hold_seen = hold; dirty_hdr = 1; }   /* 1.8: the battery's level, its blink */
     if (dirty_hdr) { dirty_hdr = 0; draw_header(); }
     if (dirty_tabs) { dirty_tabs = 0; draw_tabs(); }
     {   /* while SAVE asks: the name where the knobs were; after, the knobs again */

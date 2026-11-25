@@ -10,7 +10,7 @@ per caricare i propri campioni e installare il firmware.
 > firmware originale basta reinstallarlo dall'editor ufficiale o dall'[FM-1 Firmware Hub](https://fm1.designburgapps.com).
 > Lo usi a tuo rischio.
 
-Versione **1.8.1**. Provata su un FM-1 vero (tasti neri) fino alla 1.7; i motori della 1.8 sono provati nel simulatore e
+Versione **1.8.2**. Provata su un FM-1 vero (tasti neri) fino alla 1.7; i motori della 1.8 sono provati nel simulatore e
 nell'emulatore del chip.
 
 ## Installazione
